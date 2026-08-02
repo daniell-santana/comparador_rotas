@@ -1,6 +1,8 @@
-# Comparador de Rotas, VRP próprio vs Google Directions
+# Comparador de Rotas, VRP (algorítimo) vs Google Directions
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
+[![Deploy on Render](https://img.shields.io/badge/Deploy%20on%20Render-46E3B7?style=flat&logo=render&logoColor=white)](https://comparador-rotas.onrender.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 ![Flask](https://img.shields.io/badge/Flask-3.x-black)
 ![OR--Tools](https://img.shields.io/badge/OR--Tools-VRP-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
