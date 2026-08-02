@@ -1,0 +1,24 @@
+# Segredos — NUNCA commitar
+.env
+.env.*
+!.env.example
+
+# Cache do grafo de ruas (gerado automaticamente, pode ter centenas de MB)
+cache/*.graphml
+cache/*.graphml.gz
+
+# Logs de verificação (gerados a cada simulação, não fazem parte do código)
+logs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Editor / SO
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparador de Rotas — VRP próprio vs Google</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --azul: #2563eb; --vermelho: #e74c3c; --verde: #16a34a; --texto: #1f2937;
+    --fundo: #f5f7fb; --card-bg: #ffffff; --borda: #e2e8f0;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: var(--fundo); color: var(--texto); }
+  header { padding: 22px 28px 6px; }
+  h1 { margin: 0 0 4px; font-size: 21px; }
+  .subtitulo { color: #64748b; font-size: 13.5px; max-width: 780px; }
+  .layout { display: grid; grid-template-columns: 300px 1fr; gap: 18px; padding: 14px 28px 28px; align-items: start; }
+  .painel { background: var(--card-bg); border: 1px solid var(--borda); border-radius: 12px; padding: 18px; position: sticky; top: 14px; }
+  .painel h3 { margin-top: 0; font-size: 14px; }
+  .campo { margin-bottom: 12px; }
+  .campo label { display: block; font-size: 12.5px; color: #475569; margin-bottom: 4px; }
+  .campo input, .campo select { width: 100%; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 8px; font-size: 14px; }
+  .linha2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  button.principal { width: 100%; padding: 12px; font-size: 14.5px; cursor: pointer; background: var(--azul); color: white; border: none; border-radius: 8px; font-weight: 600; margin-top: 6px; }
+  button.principal:disabled { background: #94a3b8; cursor: not-allowed; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; margin-bottom: 14px; }
+  .card { background: var(--card-bg); border: 1px solid var(--borda); border-left: 5px solid var(--azul); border-radius: 10px; padding: 12px 16px; }
+  .card.google { border-left-color: var(--vermelho); }
+  .card.economia { border-left-color: var(--verde); }
+  .card h4 { margin: 0 0 4px; font-size: 11.5px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+  .card .valor { font-size: 21px; font-weight: 700; }
+  .card .sub { font-size: 12px; color: #94a3b8; }
+  #map { height: 560px; width: 100%; border-radius: 12px; border: 1px solid var(--borda); }
+  .aviso { background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
+  .loading { display: none; margin-bottom: 12px; font-weight: 600; color: var(--azul); font-size: 13.5px; }
+  .spinner { border: 3px solid #dbeafe; border-top: 3px solid var(--azul); border-radius: 50%; width: 15px; height: 15px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .toggles { display: flex; gap: 14px; margin: 10px 0 4px; font-size: 12.5px; flex-wrap: wrap; }
+  .toggles label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .legenda-cor { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+  .ordem-num { background: white; border-radius: 50%; font-size: 11px; font-weight: 700; width: 22px; height: 22px; line-height: 18px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+  .paradas-lista { max-height: 280px; overflow-y: auto; font-size: 12.5px; margin-top: 6px; border-top: 1px solid var(--borda); padding-top: 8px; }
+  .paradas-lista h4 { font-size: 12px; color: #475569; margin: 6px 0 2px; }
+  .parada-item { display: flex; justify-content: space-between; padding: 5px 2px; border-bottom: 1px solid #f1f5f9; }
+  .parada-item.atraso { color: #dc2626; font-weight: 600; }
+  table.comparacao { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.comparacao th { text-align: left; padding: 6px 10px; border-bottom: 2px solid var(--borda); font-size: 12px; text-transform: uppercase; letter-spacing: .3px; }
+  table.comparacao td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; }
+  table.comparacao td.atraso { color: #dc2626; font-weight: 600; }
+  .itinerarios { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .itinerario { border: 1px solid var(--borda); border-radius: 10px; overflow: hidden; }
+  .itin-header { padding: 10px 14px; border-left: 5px solid; font-weight: 700; font-size: 13.5px; background: #fafbfc; }
+  .itin-lista { padding: 12px 16px 14px; }
+  .itin-ponto { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; padding: 3px 0; flex-wrap: wrap; }
+  .itin-marcador { width: 20px; height: 20px; border-radius: 50%; color: white; font-size: 10.5px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .itin-hora { margin-left: auto; font-weight: 700; color: var(--texto); font-size: 13px; }
+  .itin-janela { font-weight: 500; font-size: 11.5px; color: #64748b; background: #f1f5f9; padding: 1px 7px; border-radius: 999px; }
+  .itin-trecho { font-size: 12.5px; color: #64748b; padding: 4px 0 4px 28px; border-left: 2px dashed #cbd5e1; margin-left: 9px; }
+  .itin-espera { font-size: 12px; color: #b45309; background: #fffbeb; padding: 3px 8px; margin: 2px 0 2px 28px; border-radius: 6px; display: inline-block; }
+  .itin-fora-janela { color: #dc2626 !important; }
+  .modelo-info { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--borda); font-size: 12px; }
+  .modelo-info h4 { font-size: 11.5px; color: #64748b; text-transform: uppercase; letter-spacing: .3px; margin: 0 0 8px; }
+  .modelo-info .linha { display: flex; justify-content: space-between; padding: 3px 0; gap: 8px; }
+  .modelo-info .linha span:first-child { color: #64748b; }
+  .modelo-info .linha span:last-child { font-weight: 600; text-align: right; }
+  .metodologia { background: var(--card-bg); border: 1px solid var(--borda); border-radius: 12px; padding: 18px 22px; margin: 0 28px 18px; font-size: 13px; line-height: 1.6; color: #334155; }
+  .metodologia summary { cursor: pointer; font-weight: 700; font-size: 14px; color: var(--texto); list-style: none; display: flex; align-items: center; gap: 8px; }
+  .metodologia summary::-webkit-details-marker { display: none; }
+  .metodologia summary::before { content: '▸'; transition: transform .15s; }
+  .metodologia[open] summary::before { transform: rotate(90deg); }
+  .metodologia .corpo { margin-top: 14px; }
+  .metodologia h5 { font-size: 13px; margin: 14px 0 4px; color: var(--texto); }
+  .metodologia ul { margin: 4px 0; padding-left: 20px; }
+  .graficos { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grafico-box { background: var(--card-bg); border: 1px solid var(--borda); border-radius: 12px; padding: 14px 16px; }
+  .grafico-box h4 { margin: 0 0 10px; font-size: 12.5px; color: #64748b; text-transform: uppercase; letter-spacing: .3px; }
+  .grafico-box canvas { max-height: 220px; }
+  @media (max-width: 900px) { .graficos { grid-template-columns: 1fr; } }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .painel { position: static; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Comparador de Rotas — VRP próprio vs Google Directions</h1>
+  <div class="subtitulo">
+    Motor próprio (OR-Tools) que resolve o roteamento com capacidade de carga,
+    janela de horário por cliente e jornada máxima do motorista. O Google
+    Directions, usado como referência, otimiza apenas distância e não suporta
+    essas restrições, por isso o comparativo de km é ilustrativo, não uma
+    disputa justa entre iguais.
+  </div>
+</header>
+
+<details class="metodologia">
+  <summary>ℹ️ Sobre este modelo: o que é, e por que uma empresa usaria isso em vez de só abrir o Google Maps</summary>
+  <div class="corpo">
+    <h5>É um algoritmo heurístico, não exato</h5>
+    <p>
+      O motor próprio resolve um <strong>VRP (Vehicle Routing Problem) com OR-Tools</strong>, usando uma
+      estratégia gulosa inicial (<em>Path Cheapest Arc</em>) refinada por uma metaheurística
+      (<em>Guided Local Search</em>). Isso significa que ele <strong>não garante a rota matematicamente
+      ótima</strong>, garante a melhor rota que conseguiu encontrar dentro de um tempo de busca limitado
+      (20s por padrão). Para poucos clientes (até ~15), na prática costuma chegar muito perto do ótimo;
+      para problemas maiores, a qualidade depende de dar mais tempo de busca ou aceitar uma solução um
+      pouco pior. O Google Directions também é heurístico, nenhum dos dois é "perfeito", os dois são
+      "boas soluções encontradas rápido".
+    </p>
+    <h5>Por que uma transportadora não usa só o Google Maps</h5>
+    <p>O Google Directions (a rota "referência" vermelha nesta página) resolve bem um problema específico:
+      a ordem de menor distância/tempo para visitar um conjunto de pontos com <strong>um veículo, sem
+      restrições operacionais</strong>. Isso não é o problema que uma operação logística real precisa
+      resolver. Faltam nele:</p>
+    <ul>
+      <li><strong>Capacidade de carga</strong>: quanto cabe em cada veículo (kg/volume), para não estourar o caminhão.</li>
+      <li><strong>Janela de horário por cliente</strong>: compromissos de entrega ("entre 14h e 16h") que o cliente exige.</li>
+      <li><strong>Jornada do motorista</strong>: limite de horas de trabalho, para não violar legislação trabalhista.</li>
+      <li><strong>Múltiplos veículos simultâneos</strong>: dividir a demanda entre a frota disponível.</li>
+      <li><strong>Função de custo própria</strong>: o Google minimiza distância/tempo; uma empresa pode
+        querer minimizar custo de combustível, priorizar clientes VIP, ou balancear carga entre motoristas.</li>
+    </ul>
+    <p>Por isso empresas de logística de médio/grande porte constroem (ou compram) um motor de VRP
+      próprio, normalmente com OR-Tools, OptaPlanner, ou solvers comerciais como Gurobi/CPLEX e usam
+      APIs de mapa (Google, OSM, HERE) só como fonte de dados de rua e navegação, não como o "cérebro"
+      da decisão de quem visita quem e em que ordem.</p>
+    <h5>Por que a rota às vezes "se cruza" ou passa perto do mesmo lugar duas vezes</h5>
+    <p>
+      Numa rota sem restrição nenhuma (só distância), a solução ótima <strong>nunca se cruza</strong>, 
+      é uma propriedade matemática conhecida do problema do caixeiro-viajante: qualquer cruzamento pode
+      ser "desfeito" trocando a ordem de dois trechos pra obter uma rota mais curta, então a rota
+      ótima é sempre um laço sem auto-interseção. Se você notar o traçado azul cruzando a si mesmo, o
+      motivo quase sempre é <strong>janela de horário</strong>: o cliente mais próximo geograficamente
+      pode ter uma janela de entrega mais tarde no dia, obrigando o veículo a "ir buscar" um cliente
+      mais distante primeiro (porque a janela dele fecha antes) e voltar depois para o vizinho — o que
+      aumenta a distância percorrida, mas é a única forma de cumprir os dois compromissos de horário.
+      Isso é uma característica normal do VRPTW (VRP com janela de horário) e não do TSP puro que o
+      Google resolve, o Google maps não tem esse tipo de restrição pra respeitar, então a rota dele tende a
+      ser mais "compacta" visualmente.
+    </p>
+    <h5>Como julgar se o resultado é bom</h5>
+    <ul>
+      <li><strong>Viabilidade</strong>: a rota respeita capacidade, janela e jornada? Se não, o solver avisa e relaxa (ver aviso na tela).</li>
+      <li><strong>Valor da função objetivo</strong>: aqui, distância total. É o número que o solver de fato tenta minimizar.</li>
+      <li><strong>Tempo de execução</strong>: quanto tempo o solver gastou buscando; mais tempo geralmente melhora a solução, com retorno decrescente.</li>
+      <li><strong>Comparação com uma referência</strong>: por isso a rota do Google aparece ao lado: dá uma noção de "quão boa" a solução própria está, mesmo resolvendo um problema mais restrito.</li>
+    </ul>
+  </div>
+</details>
+
+<div class="layout">
+  <div class="painel">
+    <h3>Parâmetros da simulação</h3>
+    <div class="campo">
+      <label>Número de clientes (2–25)</label>
+      <input type="number" id="numClientes" value="10" min="2" max="25">
+    </div>
+    <div class="campo">
+      <label>Raio de dispersão (km)</label>
+      <input type="number" id="raioKm" value="4" min="1" max="15" step="0.5">
+    </div>
+    <div class="campo">
+      <label>Capacidade (kg)</label>
+      <input type="number" id="capacidadeKg" value="1200" min="50" step="50">
+    </div>
+    <div class="campo">
+      <label>Jornada máxima (horas)</label>
+      <input type="number" id="jornadaHoras" value="8" min="1" max="12" step="0.5">
+    </div>
+    <div class="campo">
+      <label>Algoritmo customizado</label>
+      <select id="algoritmo">
+        <option value="vrp">VRP com restrições (OR-Tools) — recomendado</option>
+        <option value="sa">Simulated Annealing (sem restrições)</option>
+      </select>
+    </div>
+    <button class="principal" id="btnComparar">🔁 Gerar clientes e comparar</button>
+
+    <div class="toggles">
+      <label><input type="checkbox" id="toggleGoogle" checked><span class="legenda-cor" style="background:var(--vermelho)"></span> Google</label>
+      <label><input type="checkbox" id="toggleCustom" checked><span class="legenda-cor" style="background:var(--azul)"></span> Rota própria</label>
+    </div>
+
+    <div id="modeloInfo" class="modelo-info" style="display:none;"></div>
+
+    <div id="paradasLista" class="paradas-lista"></div>
+  </div>
+
+  <div>
+    <div id="aviso" class="aviso" style="display:none;"></div>
+    <div id="loading" class="loading"><span class="spinner"></span><span id="statusMsg">Processando...</span></div>
+
+    <div class="graficos">
+      <div class="grafico-box">
+        <h4>Distância e tempo — Google vs rota própria</h4>
+        <canvas id="graficoComparativo"></canvas>
+      </div>
+      <div class="grafico-box">
+        <h4>Entregas dentro da janela prometida</h4>
+        <canvas id="graficoJanela"></canvas>
+      </div>
+    </div>
+
+    <div class="cards">
+      <div class="card"><h4>Rota própria</h4><div class="valor" id="distCustom">--</div><div class="sub">km · <span id="tempoCustom">--</span> dirigindo</div></div>
+      <div class="card"><h4>Tempo total (c/ espera)</h4><div class="valor" id="tempoDecorrido">--</div><div class="sub" id="tempoEsperaSub">--</div></div>
+      <div class="card google"><h4>Google (referência)</h4><div class="valor" id="distGoogle">--</div><div class="sub">km · <span id="tempoGoogle">--</span></div></div>
+      <div class="card economia"><h4>Economia de distância</h4><div class="valor" id="economia">--</div><div class="sub">%</div></div>
+      <div class="card economia"><h4>Economia de tempo</h4><div class="valor" id="economiaTempo">--</div><div class="sub">%</div></div>
+      <div class="card"><h4>Dentro da janela</h4><div class="valor" id="dentroJanela">--</div><div class="sub">entregas no prazo</div></div>
+    </div>
+    <div id="map"></div>
+    <div id="comparacaoParadas" class="painel" style="margin-top:16px;"></div>
+    <div style="text-align:center; font-size:10.5px; color:#cbd5e1; margin-top:14px;">
+      build do servidor: {{BUILD}} — se você acabou de atualizar o código e a tela não mudou,
+      dê um refresh forçado (Ctrl+Shift+R / Cmd+Shift+R) antes de suspeitar de bug.
+    </div>
+  </div>
+</div>
+
+<script>
+const PALETA_VEICULOS = ['#2563eb', '#7c3aed', '#0891b2', '#ca8a04', '#059669', '#db2777'];
+
+const map = L.map('map').setView([-23.5505, -46.6333], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap'
+}).addTo(map);
+
+let camadaGoogle = null;
+let camadasCustom = [];
+let marcadores = [];
+let ultimaResposta = null;
+
+function iconNumerado(numero, cor) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="ordem-num" style="border:2px solid ${cor}; color:${cor};">${numero}</div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+  });
+}
+
+function formatarDuracao(segundos) {
+  const min = Math.round(segundos / 60);
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const resto = min % 60;
+  return `${h}h${resto.toString().padStart(2, '0')}`;
+}
+
+function nomeAlgoritmo(data) {
+  return data.rota_personalizada.algoritmo === 'sa' ? 'SA' : 'VRP';
+}
+
+function limparMapa() {
+  if (camadaGoogle) map.removeLayer(camadaGoogle);
+  camadasCustom.forEach(c => map.removeLayer(c));
+  camadasCustom = [];
+  marcadores.forEach(m => map.removeLayer(m));
+  marcadores = [];
+  camadaGoogle = null;
+}
+
+function renderizar(data, origin) {
+  limparMapa();
+
+  const marcadorDeposito = L.marker(origin, {
+    icon: L.divIcon({
+      className: '',
+      html: `<div class="ordem-num" style="background:#111827;color:white;border:2px solid white;">🏢</div>`,
+      iconSize: [24, 24], iconAnchor: [12, 12],
+    })
+  }).addTo(map).bindPopup('🏢 Depósito');
+  marcadores.push(marcadorDeposito);
+
+  if (document.getElementById('toggleGoogle').checked) {
+    const coordsGoogle = data.rota_google.coords.map(p => [p[0], p[1]]);
+    camadaGoogle = L.polyline(coordsGoogle, { color: '#e74c3c', weight: 5, opacity: 0.8 }).addTo(map);
+    const setaGoogle = L.polylineDecorator(camadaGoogle, {
+      patterns: [{ offset: '5%', repeat: '8%', symbol: L.Symbol.arrowHead({ pixelSize: 10, polygon: false, pathOptions: { stroke: true, color: '#e74c3c', weight: 3, opacity: 0.9 } }) }]
+    }).addTo(map);
+    camadasCustom.push(setaGoogle);
+    data.rota_google.order.forEach((clienteIdx, pos) => {
+      const cliente = data.clientes[clienteIdx];
+      const m = L.marker([cliente.lat, cliente.lng], { icon: iconNumerado(cliente.id, '#e74c3c') })
+        .addTo(map)
+        .bindPopup(`<strong>Google · ${pos + 1}ª parada</strong><br>Cliente ${cliente.id}`);
+      marcadores.push(m);
+    });
+  }
+
+  let distCustomTotal = 0;
+  let tempoCustomTotal = 0;
+  if (document.getElementById('toggleCustom').checked) {
+    data.rota_personalizada.veiculos.forEach((veic, vi) => {
+      const cor = PALETA_VEICULOS[vi % PALETA_VEICULOS.length];
+      const coords = veic.coords.map(p => [p[0], p[1]]);
+
+      // Prova do lado do navegador — independente de qualquer cálculo do
+      // servidor: mede a distância entre CADA par de pontos consecutivos no
+      // array exato que o Leaflet vai desenhar, e avisa se algum salto for
+      // grande. Isso fecha o ciclo: se aparecer aqui, o problema está entre
+      // o JSON recebido e o desenho; se NÃO aparecer aqui mas a linha ainda
+      // parecer reta, não é um "salto" no dado — é outra coisa.
+      for (let k = 0; k < coords.length - 1; k++) {
+        const d = _distanciaHaversineM(coords[k], coords[k + 1]);
+        if (d > 300) {
+          console.error(`[diagnóstico CLIENT-SIDE] Veículo ${veic.veiculo}: salto de ${Math.round(d)}m ` +
+            `entre os pontos ${k} e ${k + 1} do array recebido do servidor — ${coords[k]} -> ${coords[k + 1]}`);
+        }
+      }
+
+      const linha = L.polyline(coords, { color: cor, weight: 4, opacity: 0.9, dashArray: '8,6' }).addTo(map);
+      camadasCustom.push(linha);
+      const setaCustom = L.polylineDecorator(linha, {
+        patterns: [{ offset: '5%', repeat: '8%', symbol: L.Symbol.arrowHead({ pixelSize: 9, polygon: false, pathOptions: { stroke: true, color: cor, weight: 3, opacity: 0.95 } }) }]
+      }).addTo(map);
+      camadasCustom.push(setaCustom);
+      distCustomTotal += veic.distancia_m;
+      tempoCustomTotal += veic.duracao_s;
+
+      // Trechos sem caminho viável real (fallback em linha reta) — não deveria
+      // acontecer após a poda do maior componente conexo, mas se acontecer,
+      // fica bem visível em vez de escondido dentro da rota normal.
+      (veic.trechos_sem_rua || []).forEach(trecho => {
+        const linhaFallback = L.polyline(trecho.map(p => [p[0], p[1]]), {
+          color: '#dc2626', weight: 3, opacity: 0.9, dashArray: '2,6'
+        }).addTo(map).bindTooltip('⚠️ Sem caminho viável encontrado nesta malha — linha reta', { sticky: true });
+        camadasCustom.push(linhaFallback);
+      });
+
+      // Saltos individuais sem geometria escondidos DENTRO de um trecho —
+      // se o reparo automático via Google funcionou, a rota principal já
+      // sai correta e não precisa de destaque. Só sinalizamos em magenta os
+      // que NÃO foram reparados (ainda aparecem retos no mapa).
+      (veic.saltos_sem_geometria || []).filter(s => !s.reparado).forEach(s => {
+        const linhaSalto = L.polyline(s.coords.map(p => [p[0], p[1]]), {
+          color: '#c026d3', weight: 5, opacity: 0.95
+        }).addTo(map).bindTooltip(
+          `🟣 Salto de ${s.distancia_m}m sem geometria salva na via, e o reparo automático falhou`,
+          { sticky: true }
+        );
+        camadasCustom.push(linhaSalto);
+      });
+
+      // Trechos com caminho real encontrado, mas quase perfeitamente retos por
+      // mais de 300m — pode ser via expressa genuinamente reta OU um bug.
+      // Destacado em laranja com a circuidade exata pra você julgar olhando
+      // o trecho específico no mapa (não é garantia de bug, é um alerta).
+      (veic.diagnostico_retas || []).forEach(t => {
+        const linhaSuspeita = L.polyline(t.coords.map(p => [p[0], p[1]]), {
+          color: '#f97316', weight: 4, opacity: 0.95
+        }).addTo(map).bindTooltip(
+          `🔶 Circuidade ${t.circuidade} (1.0=reta perfeita), ${t.n_pontos} pontos na via — ` +
+          'confira no Google Maps se essa via é mesmo reta aqui',
+          { sticky: true }
+        );
+        camadasCustom.push(linhaSuspeita);
+      });
+      veic.paradas.forEach((parada) => {
+        const m = L.marker([parada.lat, parada.lng], { icon: iconNumerado(parada.cliente_id, cor) })
+          .addTo(map)
+          .bindPopup(
+            `<strong>${nomeAlgoritmo(data)} · Veículo ${veic.veiculo} · ${parada.ordem}ª parada</strong><br>` +
+            `Cliente ${parada.cliente_id} · ${parada.demanda_kg} kg<br>` +
+            `Janela prometida: ${parada.janela}<br>` +
+            `Chegada estimada: ${parada.chegada_estimada || '--'}` +
+            (parada.dentro_da_janela === false ? '<br>⚠️ fora da janela' : '')
+          );
+        marcadores.push(m);
+      });
+    });
+  }
+
+  const todosPontos = [origin, ...data.clientes.map(c => [c.lat, c.lng])];
+  map.fitBounds(todosPontos, { padding: [30, 30] });
+
+  document.getElementById('distCustom').textContent = (distCustomTotal / 1000).toFixed(2);
+  document.getElementById('distGoogle').textContent = (data.rota_google.distance / 1000).toFixed(2);
+  document.getElementById('tempoCustom').textContent = formatarDuracao(tempoCustomTotal);
+  document.getElementById('tempoGoogle').textContent = formatarDuracao(data.rota_google.duration);
+  document.getElementById('economia').textContent = data.economia_percentual.toFixed(1);
+  document.getElementById('economiaTempo').textContent = data.economia_tempo_percentual.toFixed(1);
+
+  const tempoDecorridoMax = data.rota_personalizada.tempo_decorrido_max_s || 0;
+  const esperaTotal = data.rota_personalizada.veiculos.reduce((s, v) => s + (v.tempo_espera_s || 0), 0);
+  document.getElementById('tempoDecorrido').textContent = formatarDuracao(tempoDecorridoMax);
+  document.getElementById('tempoEsperaSub').textContent =
+    esperaTotal > 60 ? `inclui ${formatarDuracao(esperaTotal)} de espera` : 'sem espera relevante';
+  document.getElementById('dentroJanela').textContent =
+    `${data.rota_personalizada.paradas_no_prazo}/${data.rota_personalizada.paradas_totais}`;
+
+  const aviso = document.getElementById('aviso');
+  const avisos = [];
+  if (data.rota_personalizada.restricoes_relaxadas) {
+    avisos.push('⚠️ Não foi possível atender capacidade e janela de horário simultaneamente ' +
+      'com os parâmetros informados — a rota abaixo relaxou essas restrições. Tente aumentar a ' +
+      'capacidade/jornada ou reduzir o número de clientes.');
+  }
+  if (data.rota_personalizada.total_trechos_sem_rua > 0) {
+    avisos.push(`⚠️ ${data.rota_personalizada.total_trechos_sem_rua} trecho(s) da rota própria não ` +
+      'encontraram caminho viável na malha e usaram linha reta (destacado em vermelho pontilhado no mapa). ' +
+      'Isso não deveria acontecer — se persistir após reiniciar o servidor, avise.');
+  }
+  // Saltos sem geometria: o reparo automático via Google já resolve a
+  // maioria; os poucos que sobram (normalmente vias bem curtas, onde o
+  // próprio Google também não acha curva) ficam só no log/console — não
+  // precisam incomodar o usuário com um aviso na tela toda vez.
+  if (data.rota_personalizada.total_trechos_suspeitos > 0) {
+    avisos.push(`🔶 ${data.rota_personalizada.total_trechos_suspeitos} trecho(s) real(is) da rota própria ` +
+      'ficaram quase perfeitamente retos por mais de 300m (destacado em laranja no mapa). Pode ser via ' +
+      'expressa genuinamente reta, ou não — abra o console (F12) para ver as coordenadas exatas e comparar ' +
+      'com o Google Maps.');
+  }
+  if (data.rota_personalizada.tempo_real_indisponivel) {
+    avisos.push('ℹ️ Não foi possível obter tempos reais do Google (Routes API) para esta simulação — ' +
+      'os tempos de deslocamento abaixo usam a estimativa própria baseada no limite de velocidade da via, ' +
+      'sem trânsito. Confira se a "Routes API" está habilitada no seu projeto do Google Cloud.');
+  }
+  console.log('[diagnóstico] resposta completa de /comparar:', data);
+  data.rota_personalizada.veiculos.forEach(v => {
+    if ((v.trechos_sem_rua || []).length) console.warn(`[diagnóstico] Veículo ${v.veiculo}: trechos SEM via real:`, v.trechos_sem_rua);
+    if ((v.diagnostico_retas || []).length) console.warn(`[diagnóstico] Veículo ${v.veiculo}: trechos suspeitos de reta:`, v.diagnostico_retas);
+    if ((v.saltos_sem_geometria || []).length) console.warn(`[diagnóstico] Veículo ${v.veiculo}: saltos sem geometria (escondidos):`, v.saltos_sem_geometria);
+  });
+  const esperaTotalAviso = data.rota_personalizada.veiculos.reduce((s, v) => s + (v.tempo_espera_s || 0), 0);
+  if (esperaTotalAviso > 3600) {
+    avisos.push(`ℹ️ O veículo passou ${formatarDuracao(esperaTotalAviso)} parado esperando a janela do ` +
+      'próximo cliente abrir (não é bug — janelas de horário simuladas caem em qualquer hora do dia). ' +
+      'Se isso não for aceitável operacionalmente, use mais veículos ou reduza a variação das janelas.');
+  }
+  if (avisos.length) {
+    aviso.style.display = 'block';
+    aviso.innerHTML = avisos.join('<br>');
+  } else {
+    aviso.style.display = 'none';
+  }
+
+  const lista = document.getElementById('paradasLista');
+  lista.innerHTML = data.rota_personalizada.veiculos.map(v => `
+    <h4>${nomeAlgoritmo(data)} · Veículo ${v.veiculo} — ${v.carga_kg}/${v.capacidade_kg} kg</h4>
+    ${v.paradas.map(p => `
+      <div class="parada-item ${p.dentro_da_janela === false ? 'atraso' : ''}">
+        <span>${p.ordem}. Cliente ${p.cliente_id} (${p.demanda_kg}kg)</span>
+        <span>${p.chegada_estimada || '--'}</span>
+      </div>
+    `).join('')}
+  `).join('');
+
+  renderizarComparacao(data);
+  renderizarModeloInfo(data);
+  renderizarGraficos(data);
+}
+
+function renderizarModeloInfo(data) {
+  const div = document.getElementById('modeloInfo');
+  const m = data.modelo_info;
+  if (!m) { div.style.display = 'none'; return; }
+  div.style.display = 'block';
+
+  const linhasHiper = Object.entries(m.hiperparametros).map(([k, v]) =>
+    `<div class="linha"><span>${k.replace(/_/g, ' ')}</span><span>${v}</span></div>`
+  ).join('');
+
+  div.innerHTML = `
+    <h4>⚙️ Modelo desta simulação</h4>
+    <div class="linha"><span>Algoritmo</span><span>${m.algoritmo_nome}</span></div>
+    ${linhasHiper}
+    <div class="linha"><span>Função objetivo</span><span>${m.funcao_objetivo}</span></div>
+    <div class="linha"><span>Valor objetivo</span><span>${(m.valor_objetivo_m / 1000).toFixed(2)} km</span></div>
+    <div class="linha"><span>Tempo de execução</span><span>${m.tempo_execucao_s.toFixed(2)} s</span></div>
+    <div class="linha"><span>Clientes / veículos</span><span>${m.n_clientes} / ${m.n_veiculos}</span></div>
+    ${m.dimensoes_restricao ? `<div class="linha"><span>Restrições ativas</span><span>${m.dimensoes_restricao.join(', ')}</span></div>` : ''}
+  `;
+}
+
+let graficoComparativoChart = null;
+let graficoJanelaChart = null;
+
+function renderizarGraficos(data) {
+  const algo = nomeAlgoritmo(data);
+  const distGoogleKm = data.rota_google.distance / 1000;
+  const distCustomKm = data.rota_personalizada.distancia_total_m / 1000;
+  const tempoGoogleMin = data.rota_google.duration / 60;
+  const tempoCustomMin = data.rota_personalizada.duracao_total_s / 60;
+
+  const ctx1 = document.getElementById('graficoComparativo');
+  if (graficoComparativoChart) graficoComparativoChart.destroy();
+  graficoComparativoChart = new Chart(ctx1, {
+    type: 'bar',
+    data: {
+      labels: ['Distância (km)', 'Tempo dirigindo (min)'],
+      datasets: [
+        { label: '🗺️ Google', data: [distGoogleKm, tempoGoogleMin], backgroundColor: '#e74c3c' },
+        { label: `🚚 ${algo}`, data: [distCustomKm, tempoCustomMin], backgroundColor: '#2563eb' },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  const noPrazo = data.rota_personalizada.paradas_no_prazo;
+  const totalParadas = data.rota_personalizada.paradas_totais;
+  const foraDoPrazo = Math.max(0, totalParadas - noPrazo);
+
+  const ctx2 = document.getElementById('graficoJanela');
+  if (graficoJanelaChart) graficoJanelaChart.destroy();
+  graficoJanelaChart = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+      labels: ['Dentro da janela', 'Fora da janela'],
+      datasets: [{ data: [noPrazo, foraDoPrazo], backgroundColor: ['#16a34a', '#dc2626'] }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+      cutout: '65%',
+    }
+  });
+}
+
+function zoomNoTrecho(deLat, deLng, paraLat, paraLng) {
+  map.fitBounds([[deLat, deLng], [paraLat, paraLng]], { maxZoom: 16, padding: [60, 60] });
+  window.scrollTo({ top: document.getElementById('map').offsetTop - 20, behavior: 'smooth' });
+}
+
+function formatarKm(metros) {
+  return (metros / 1000).toFixed(2).replace('.', ',') + ' km';
+}
+
+function _distanciaHaversineM(a, b) {
+  const R = 6371000;
+  const [lat1, lon1] = a, [lat2, lon2] = b;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+let coordsPorRota = {};
+let animacaoAtiva = null;
+
+function _distanciaAproximada(a, b) {
+  const dLat = a[0] - b[0], dLng = a[1] - b[1];
+  return Math.sqrt(dLat * dLat + dLng * dLng);
+}
+
+function animarPercurso(chave, emoji, botao, distanciaKm) {
+  const coords = coordsPorRota[chave];
+  if (!coords || coords.length < 2) return;
+
+  if (animacaoAtiva) { animacaoAtiva.cancelado = true; }
+  if (animacaoAtiva && animacaoAtiva.marcador) map.removeLayer(animacaoAtiva.marcador);
+
+  // Distância acumulada ao longo da rota, pra a velocidade visual do ícone
+  // ser constante mesmo com pontos desigualmente espaçados.
+  const acumulada = [0];
+  for (let i = 1; i < coords.length; i++) {
+    acumulada.push(acumulada[i - 1] + _distanciaAproximada(coords[i - 1], coords[i]));
+  }
+  const total = acumulada[acumulada.length - 1] || 1;
+
+  const marcador = L.marker(coords[0], {
+    icon: L.divIcon({ className: '', html: `<div style="font-size:22px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5));">${emoji}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] })
+  }).addTo(map);
+
+  const estado = { cancelado: false, marcador };
+  animacaoAtiva = estado;
+  // ~2,2s de animação por km percorrido, com piso de 10s (rotas curtas não
+  // ficam instantâneas) e teto de 35s (rotas longas não ficam eternas).
+  const duracaoMs = Math.min(35000, Math.max(10000, (distanciaKm || 5) * 2200));
+  const inicio = performance.now();
+  const textoOriginal = botao.textContent;
+  botao.textContent = '⏸ animando...';
+  botao.disabled = true;
+
+  function passo(agora) {
+    if (estado.cancelado) return;
+    const frac = Math.min(1, (agora - inicio) / duracaoMs);
+    const alvo = frac * total;
+    let i = 1;
+    while (i < acumulada.length && acumulada[i] < alvo) i++;
+    const a = coords[i - 1], b = coords[Math.min(i, coords.length - 1)];
+    const segLen = acumulada[i] - acumulada[i - 1] || 1;
+    const t = Math.max(0, Math.min(1, (alvo - acumulada[i - 1]) / segLen));
+    marcador.setLatLng([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+    if (frac < 1) {
+      requestAnimationFrame(passo);
+    } else {
+      setTimeout(() => { if (!estado.cancelado) map.removeLayer(marcador); }, 600);
+      botao.textContent = textoOriginal;
+      botao.disabled = false;
+    }
+  }
+  requestAnimationFrame(passo);
+}
+
+function renderizarItinerario(titulo, cor, pernas, chaveRota, emoji, distanciaKm) {
+  let html = `
+    <div class="itinerario">
+      <div class="itin-header" style="border-left-color:${cor}; color:${cor}; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <span>${titulo}</span>
+        <button class="btn-animar" style="border:1px solid ${cor}; color:${cor}; background:white; border-radius:999px; padding:3px 10px; font-size:11px; cursor:pointer; white-space:nowrap;"
+          onclick="animarPercurso('${chaveRota}', '${emoji}', this, ${distanciaKm})">▶️ animar</button>
+      </div>
+      <div class="itin-lista">
+        <div class="itin-ponto"><span class="itin-marcador" style="background:#111827;">🏢</span> Depósito <span class="itin-hora">08:00</span></div>
+  `;
+  pernas.forEach((p, i) => {
+    const ehDeposito = p.para === 'Depósito';
+    html += `
+        <div class="itin-trecho">
+          <span>↓ ${formatarDuracao(p.duracao_viagem_s)} (${formatarKm(p.distancia_m)})</span>
+          <button class="btn-zoom" onclick="zoomNoTrecho(${p.de_lat}, ${p.de_lng}, ${p.para_lat}, ${p.para_lng})"
+            title="Ver este trecho no nível de rua" style="margin-left:8px; border:1px solid #cbd5e1; background:white; border-radius:6px; font-size:10.5px; padding:1px 6px; cursor:pointer; color:#475569;">🔍 ver no mapa</button>
+        </div>
+    `;
+    if (p.espera_antes_s > 60) {
+      html += `<div class="itin-espera">⏳ esperou ${formatarDuracao(p.espera_antes_s)} aqui até a janela do próximo cliente abrir</div>`;
+    }
+    html += `
+        <div class="itin-ponto">
+          <span class="itin-marcador" style="background:${ehDeposito ? '#111827' : cor};">${ehDeposito ? '🏢' : (i + 1)}</span>
+          ${p.para}
+          ${p.janela_destino ? `<span class="itin-janela">janela ${p.janela_destino}</span>` : ''}
+          <span class="itin-hora">${p.chegada}</span>
+        </div>
+    `;
+  });
+  html += `</div></div>`;
+  return html;
+}
+
+function renderizarComparacao(data) {
+  const div = document.getElementById('comparacaoParadas');
+  const veiculos = data.rota_personalizada.veiculos;
+  const algo = nomeAlgoritmo(data);
+
+  coordsPorRota = { google: data.rota_google.coords.map(p => [p[0], p[1]]) };
+  veiculos.forEach(v => { coordsPorRota[`veic_${v.veiculo}`] = v.coords.map(p => [p[0], p[1]]); });
+
+  let cards = renderizarItinerario(
+    `🗺️ Google · ${formatarKm(data.rota_google.distance)} · ${formatarDuracao(data.rota_google.duration)}`,
+    '#e74c3c',
+    data.rota_google.pernas || [],
+    'google',
+    '🚗',
+    data.rota_google.distance / 1000
+  );
+  veiculos.forEach((v, vi) => {
+    const cor = PALETA_VEICULOS[vi % PALETA_VEICULOS.length];
+    cards += renderizarItinerario(
+      `🚚 ${algo} · Veículo ${v.veiculo} · ${formatarKm(v.distancia_m)} · ${formatarDuracao(v.duracao_s)} dirigindo`,
+      cor,
+      v.pernas || [],
+      `veic_${v.veiculo}`,
+      '🚚',
+      v.distancia_m / 1000
+    );
+  });
+
+  div.innerHTML = `
+    <h3 style="margin-top:0;font-size:14px;">📊 Mesmo carro, mesma hora de saída (08:00), dois trajetos possíveis</h3>
+    <p style="font-size:12px;color:#64748b;margin:0 0 12px;">
+      Simulação do mesmo veículo saindo do depósito às 08:00: de um lado seguindo a ordem sugerida
+      pelo Google, do outro seguindo a ordem otimizada pelo ${algo}. Cada trecho mostra a distância e
+      o tempo dirigindo. O Google não trabalha com janela de horário prometida ao cliente — só o
+      ${algo} considera isso, e por isso só o lado do ${algo} mostra espera e janela.
+    </p>
+    <div class="itinerarios">${cards}</div>
+    <p style="font-size:11.5px;color:#94a3b8;margin:10px 0 0;">
+      📄 <a href="${data.log_url}" target="_blank">baixar log desta simulação</a> — lista, trecho a
+      trecho, a ordem exata desenhada no mapa e se cada um achou via real ou não. Serve de contraprova
+      independente do que está sendo mostrado na tela.
+    </p>
+  `;
+}
+
+async function comparar() {
+  const loadingDiv = document.getElementById('loading');
+  const statusMsg = document.getElementById('statusMsg');
+  const btn = document.getElementById('btnComparar');
+  const aviso = document.getElementById('aviso');
+  aviso.style.display = 'none';
+  loadingDiv.style.display = 'block';
+  btn.disabled = true;
+  statusMsg.textContent = 'Calculando malha viária e resolvendo a roteirização (a 1ª execução baixa o grafo de SP e pode levar minutos)...';
+
+  const origin = [-23.5505, -46.6333];
+  const payload = {
+    origin,
+    num_clientes: parseInt(document.getElementById('numClientes').value),
+    raio_km: parseFloat(document.getElementById('raioKm').value),
+    num_veiculos: 1,
+    capacidade_veiculo_kg: parseFloat(document.getElementById('capacidadeKg').value),
+    jornada_maxima_horas: parseFloat(document.getElementById('jornadaHoras').value),
+    algoritmo: document.getElementById('algoritmo').value,
+  };
+
+  try {
+    const resp = await fetch('/comparar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.erro || `Erro ${resp.status}`);
+
+    ultimaResposta = data;
+    renderizar(data, origin);
+    statusMsg.textContent = 'Concluído!';
+  } catch (err) {
+    aviso.style.display = 'block';
+    aviso.textContent = 'Erro: ' + err.message;
+  } finally {
+    loadingDiv.style.display = 'none';
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('btnComparar').addEventListener('click', comparar);
+document.getElementById('toggleGoogle').addEventListener('change', () => {
+  if (ultimaResposta) renderizar(ultimaResposta, [-23.5505, -46.6333]);
+});
+document.getElementById('toggleCustom').addEventListener('change', () => {
+  if (ultimaResposta) renderizar(ultimaResposta, [-23.5505, -46.6333]);
+});
+</script>
+</body>
+</html>

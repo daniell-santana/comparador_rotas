@@ -1,0 +1,10 @@
+Flask
+flask-cors
+python-dotenv
+requests
+numpy
+networkx
+osmnx
+polyline
+ortools
+scikit-learn
