@@ -1,4 +1,4 @@
-# Comparador de Rotas, VRP (algorítimo) vs Google Directions
+# Otimização de Rotas: Solução de VRP (OR-Tools) vs Google Directions
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
 [![Deploy on Render](https://img.shields.io/badge/Deploy%20on%20Render-46E3B7?style=flat&logo=render&logoColor=white)](https://comparador-rotas.onrender.com)
@@ -7,32 +7,24 @@
 ![OR--Tools](https://img.shields.io/badge/OR--Tools-VRP-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Aplicação web que resolve um problema de roteirização de veículos (VRP) com
-restrições operacionais reais, capacidade de carga, janela de horário por
-cliente, jornada máxima do motorista, e compara o resultado, lado a lado no
-mapa e em km/tempo, com a rota que o Google Directions sugeriria para o
-mesmo conjunto de paradas.
+Uma ferramenta analítica desenvolvida para comparar cenários de logística, confrontando o cálculo de rotas tradicionais ponto a ponto (Google Directions) com uma solução avançada de **otimização de rotas** baseada no problema de roteamento de veículos (VRP).
 
-> **Por que isso importa:** o Google Directions resolve bem um problema
-> específico (menor distância/tempo para visitar pontos com 1 veículo, sem
-> restrições). Não é o problema que uma operação logística real precisa
-> resolver. Este projeto reproduz, em escala pequena, o motor que empresas
-> de logística de médio/grande porte constroem para isso, e explica, na
-> própria interface, por que essa escolha de arquitetura existe.
+O objetivo principal é demonstrar de forma técnica e visual a redução de custos operacionais e a eficiência de quilometragem obtida através de inteligência matemática.
 
+---
 ## O que a aplicação faz
 
-- Gera clientes simulados (posição, demanda de carga, janela de entrega) ao
-  redor de um depósito em São Paulo.
-- Resolve a rota com um solver de VRP próprio (OR-Tools: Guided Local
-  Search sobre distância real de rua), respeitando capacidade, janela de
-  horário e jornada máxima.
-- Busca, para o mesmo conjunto de paradas, a rota que o Google Directions
-  sugeriria (sem essas restrições) como referência.
-- Mostra as duas rotas no mapa (Leaflet), com itinerário trecho a trecho,
-  animação do percurso, gráficos comparativos e um log de verificação
-  auditável para conferir se a geometria desenhada bate com a ordem
-  calculada.
+A aplicação resolve o **VRP (Vehicle Routing Problem)** simulando dois cenários distintos para a mesma lista de endereços:
+
+### 1. Rota Convencional (Google Directions API)
+* **Abordagem:** Utiliza o motor de mapas do Google para calcular trajetos ponto a ponto com alta precisão. Ele processa matrizes de distância e tempo levando em conta o trânsito em tempo real, restrições de tráfego e infraestrutura viária real.
+* **Limitação:**  Ela calcula o melhor caminho para uma sequência predefinida, mas não decide estrategicamente qual veículo deve atender qual cliente quando há limites de capacidade e dezenas de destinos sobrepostos.
+
+### 2. Rota Otimizada (Google OR-Tools)
+* **Abordagem:**  Atua como a camada de inteligência matemática do projeto. Ele recebe as matrizes reais de distância e tempo geradas pelo Google Directions e aplica algoritmos avançados de otimização de restrições e meta-heurísticas.
+* **Diferencial:** O OR-Tools rearranja globalmente toda a operação. Ele descobre a melhor combinação de paradas entre múltiplos veículos simultaneamente, garantindo o respeito estrito a janelas de horário e limites de capacidade de carga, reduzindo a quilometragem total que a API do Google roteará depois.
+
+---
 
 ## Motor de roteirização
 
@@ -44,12 +36,24 @@ mesmo conjunto de paradas.
 | `google_tempo_real.matriz_tempo_google` | Tempo de viagem real (com trânsito) via Google Routes API, evita comparar tempo de dois modelos de velocidade diferentes. |
 | `tsp_sa.resolver_sa` | Simulated Annealing (TSP puro, sem restrições), mantido como alternativa mais simples, para efeito de comparação metodológica. |
 
-A seção **"ℹ️ Sobre este modelo"**, na própria interface, explica em
-detalhe: por que o algoritmo é heurístico (não exato), por que uma
-transportadora não usa só o Google Maps, e como julgar se o resultado é
-bom (função objetivo, viabilidade, tempo de execução).
+## Tecnologias Utilizadas
 
-## ▶️ Rodando localmente
+* **Python:** Linguagem base para o processamento de dados e backend.
+* **Google OR-Tools:** Biblioteca de código aberto para a execução dos algoritmos de otimização de rotas.
+* **Google Directions API:** Utilizada para obter as matrizes de distância, tempos de trânsito reais e plotagem visual dos caminhos.
+* **Html:** Interface gráfica para exibição dos indicadores de performance (KPIs) e mapas comparativos.
+
+---
+
+## Indicadores Comparativos (KPIs)
+
+O projeto extrai e compara as seguintes métricas após o processamento:
+1. **Distância Total Percorrida (km):** O principal indicador de economia de combustível.
+2. **Tempo Total de Viagem (horas):** Eficiência de tempo de jornada dos motoristas.
+3. **Ocupação da Frota (%):** Métrica de eficiência no uso do espaço dos veículos.
+---
+
+## Rodando localmente
 
 **Pré-requisitos:** Python 3.11+, uma chave de API do Google com
 **Directions API** e **Routes API** habilitadas ([console.cloud.google.com](https://console.cloud.google.com)).
@@ -105,7 +109,7 @@ cache/                  # Grafo do OSM cacheado em disco (gerado automaticamente
 logs/                   # Logs de verificação por simulação (gerado automaticamente, não versionado)
 ```
 
-## ⚠️ Limitações conhecidas
+## Limitações conhecidas
 
 - **Dados simulados**: clientes, demanda e janelas de horário são gerados
   aleatoriamente, não vêm de um sistema de pedidos real.
@@ -118,7 +122,3 @@ logs/                   # Logs de verificação por simulação (gerado automati
 - **Custo de API**: Directions API e Routes API são pagas acima de uma
   cota gratuita mensal, não deixe a chave pública/sem limite de uso se for
   expor a aplicação publicamente.
-
-## Licença
-
-MIT, sinta-se livre para usar, estudar e adaptar este projeto.
