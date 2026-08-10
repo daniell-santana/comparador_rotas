@@ -19,9 +19,16 @@ import numpy as np
 import osmnx as ox
 from ortools.constraint_solver import routing_enums_pb2, pywrapcp
 
-GRAPH_CACHE_PATH = os.getenv("GRAPH_CACHE_PATH", "cache/sao_paulo_drive_nosimplify.graphml")
+GRAPH_CACHE_DIR = os.getenv("GRAPH_CACHE_DIR", "cache")
 PLACE_NAME = os.getenv("OSM_PLACE", "São Paulo, Brazil")
 VELOCIDADE_PADRAO_KMH = 30  # fallback para vias sem 'maxspeed' no OSM
+
+# "true"/"1" simplifica o grafo (menos nós, MENOS RAM, mas reintroduz o risco
+# de retas em vias sem geometria salva — mitigado pelo reparo automático via
+# Google, ver montar_geometria_rota). Padrão é não simplificar (mais preciso,
+# mais RAM). Em hospedagem com pouca memória, combine isso com BBOX_* antes
+# de simplesmente pagar por uma máquina maior — normalmente resolve sem custo.
+GRAFO_SIMPLIFICAR = os.getenv("GRAFO_SIMPLIFICAR", "false").lower() in ("1", "true", "yes")
 
 TEMPO_LIMITE_BUSCA_PADRAO_S = 20
 CONFIG_SOLVER_VRP = {
@@ -43,13 +50,31 @@ _grafo_lock = threading.Lock()
 def _bbox_configurado():
     """Se as 4 variáveis de ambiente BBOX_* estiverem definidas, baixa só
     esse retângulo em vez da cidade inteira — reduz MUITO o uso de memória
-    (importante para hospedagem com RAM limitada, como o plano gratuito do
-    Render). Retorna (norte, sul, leste, oeste) ou None se não configurado."""
+    (importante para hospedagem com RAM limitada, como o plano gratuito ou
+    Starter do Render — os dois têm 512MB, então isso importa mesmo pagando).
+    Retorna (norte, sul, leste, oeste) ou None se não configurado."""
     chaves = ("BBOX_NORTE", "BBOX_SUL", "BBOX_LESTE", "BBOX_OESTE")
     valores = [os.getenv(k) for k in chaves]
     if all(valores):
         return tuple(float(v) for v in valores)
     return None
+
+
+def _nome_cache():
+    """O nome do arquivo de cache reflete a configuração (bbox ou cidade
+    inteira, simplificado ou não) — se você trocar BBOX_*/GRAFO_SIMPLIFICAR
+    num ambiente com disco persistente, isso evita reaproveitar por engano
+    um cache antigo maior/menor do que o configurado agora."""
+    bbox = _bbox_configurado()
+    if bbox:
+        assinatura = "bbox_" + "_".join(f"{v:.3f}" for v in bbox)
+    else:
+        assinatura = PLACE_NAME.lower().replace(" ", "_").replace(",", "")
+    sufixo_simplify = "simples" if GRAFO_SIMPLIFICAR else "nosimplify"
+    return os.path.join(GRAPH_CACHE_DIR, f"grafo_{assinatura}_{sufixo_simplify}.graphml")
+
+
+GRAPH_CACHE_PATH = os.getenv("GRAPH_CACHE_PATH") or _nome_cache()
 
 
 def obter_grafo():
@@ -73,31 +98,34 @@ def obter_grafo():
             G = ox.load_graphml(GRAPH_CACHE_PATH)
         else:
             bbox = _bbox_configurado()
-            # simplify=False é a correção definitiva pros "saltos retos"
-            # encontrados: com simplify=True, o OSMnx funde vários vértices
-            # intermediários de uma via numa única aresta e guarda a curva
-            # num atributo 'geometry' — mas isso só funciona quando essa via
-            # NÃO passou por consolidação (ou quando o próprio dado do OSM
-            # já não tinha vértices intermediários digitalizados, comum em
-            # trevos/viadutos de áreas mapeadas de forma mais grosseira,
-            # como confirmamos perto do Glicério/Parque Dom Pedro II). Sem
-            # simplificar, CADA vértice original do desenho da via no OSM
-            # vira um nó de verdade no grafo — não existe mais "aresta longa
-            # sem geometria salva": o pior caso possível é a distância entre
-            # dois vértices originais consecutivos do próprio OSM, que é
-            # sempre curta. Custa mais grafo em memória (por isso o suporte
-            # a bbox acima) e um shortest_path um pouco mais lento; a troca
-            # vale a pena pela garantia visual.
+            # GRAFO_SIMPLIFICAR=false (padrão) é a correção definitiva pros
+            # "saltos retos" encontrados: com simplify=True, o OSMnx funde
+            # vários vértices intermediários de uma via numa única aresta e
+            # guarda a curva num atributo 'geometry' — mas isso só funciona
+            # quando essa via NÃO passou por consolidação (ou quando o
+            # próprio dado do OSM já não tinha vértices intermediários
+            # digitalizados, comum em trevos/viadutos de áreas mapeadas de
+            # forma mais grosseira, como confirmamos perto do Glicério/
+            # Parque Dom Pedro II). Sem simplificar, CADA vértice original
+            # do desenho da via no OSM vira um nó de verdade no grafo — não
+            # existe mais "aresta longa sem geometria salva". Custa mais
+            # grafo em memória (por isso o suporte a BBOX_* e a
+            # GRAFO_SIMPLIFICAR=true como válvulas de escape em hospedagem
+            # com RAM limitada) e um shortest_path um pouco mais lento; a
+            # troca vale a pena pela garantia visual sempre que a memória
+            # disponível permitir.
             if bbox:
                 norte, sul, leste, oeste = bbox
                 print(f"[routing_engine] Baixando grafo do OpenStreetMap para a bbox "
-                      f"N={norte} S={sul} L={leste} O={oeste}...")
-                G = ox.graph_from_bbox((oeste, sul, leste, norte), network_type="drive", simplify=False)
+                      f"N={norte} S={sul} L={leste} O={oeste} (simplify={GRAFO_SIMPLIFICAR})...")
+                G = ox.graph_from_bbox((oeste, sul, leste, norte), network_type="drive",
+                                        simplify=GRAFO_SIMPLIFICAR)
             else:
-                print(f"[routing_engine] Baixando grafo do OpenStreetMap para '{PLACE_NAME}' inteiro... "
-                      f"(pode levar minutos e consumir bastante RAM — considere configurar "
-                      f"BBOX_NORTE/SUL/LESTE/OESTE para uma área menor em produção)")
-                G = ox.graph_from_place(PLACE_NAME, network_type="drive", simplify=False)
+                print(f"[routing_engine] Baixando grafo do OpenStreetMap para '{PLACE_NAME}' inteiro "
+                      f"(simplify={GRAFO_SIMPLIFICAR})... pode levar minutos e consumir bastante RAM — "
+                      f"considere configurar BBOX_NORTE/SUL/LESTE/OESTE e/ou GRAFO_SIMPLIFICAR=true "
+                      f"em produção com RAM limitada.")
+                G = ox.graph_from_place(PLACE_NAME, network_type="drive", simplify=GRAFO_SIMPLIFICAR)
             precisa_resalvar = True
 
         # Extrações de cidade inteira quase sempre trazem "ilhas" de ruas sem

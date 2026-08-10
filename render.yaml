@@ -8,29 +8,39 @@
 #      (por causa do "sync: false" — o valor NUNCA fica neste arquivo).
 #
 # Leia deploy.md antes do primeiro deploy — em especial a seção sobre
-# dimensionar o grafo (BBOX_*), porque isso afeta se o serviço cabe no
-# plano escolhido.
+# dimensionar o grafo, porque isso decide se o serviço cabe no plano.
+#
+# IMPORTANTE (confirmado em produção): em 2026, os planos "free" e
+# "starter" do Render têm a MESMA RAM (512MB) — a diferença entre eles é
+# só CPU e o serviço não dormir. Trocar de plano NÃO resolve falta de
+# memória; só o plano "standard" (2GB, pago) resolveria isso pagando. Por
+# isso este blueprint já vem configurado pra caber em 512MB de graça, via
+# bbox (área menor) + grafo simplificado, em vez de assumir que dá pra
+# pagar o problema.
 
 services:
   - type: web
     name: comparador-rotas
     runtime: python
-    plan: starter
-    # "starter" tem mais RAM que "free" — recomendado dado o tamanho do
-    # grafo (São Paulo inteira, sem simplificação). Se quiser tentar no
-    # plano "free" mesmo assim, configure BBOX_* (ver deploy.md) para
-    # reduzir a área baixada antes de trocar o plano aqui.
+    plan: free
+    # free e starter têm a mesma RAM (512MB) — não há motivo pra pagar
+    # starter só por causa de memória. Pague starter se quiser o serviço
+    # sempre ligado (sem dormir após 15min de inatividade), não por RAM.
 
     buildCommand: "pip install -r requirements.txt && python scripts/warm_cache.py"
     # warm_cache.py baixa e processa o grafo DURANTE o build, não na
     # primeira requisição — evita timeout no primeiro /comparar depois de
     # cada deploy. Isso faz o build demorar mais (minutos), o que é normal.
 
-    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 300"
+    startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 300"
     # --workers 1: o grafo de ruas fica em memória por processo; múltiplos
     #   workers multiplicariam o uso de RAM (cada um guardaria sua própria
-    #   cópia). Para mais capacidade de atendimento simultâneo, prefira
-    #   aumentar --threads em vez de --workers.
+    #   cópia) — com 512MB de teto, isso quebraria o serviço na certa.
+    # (sem --threads: o worker padrão do gunicorn é "sync", que processa uma
+    #   requisição por vez — colocar --threads sem --worker-class gthread
+    #   não tem efeito nenhum, e com a memória já apertada, processar uma
+    #   requisição de cada vez é mais previsível do que arriscar picos de
+    #   memória por concorrência real.)
     # --timeout 300: rotas com muitos clientes podem levar um tempo real
     #   pra resolver (matriz de distâncias + solver VRP); o padrão do
     #   gunicorn (30s) é curto demais para isso.
@@ -50,23 +60,48 @@ services:
       - key: PYTHON_VERSION
         value: "3.12.3"
 
-      # Opcional: descomente e ajuste para restringir a área do grafo
-      # baixado (recomendado em planos com pouca RAM — ver deploy.md).
-      # - key: BBOX_NORTE
-      #   value: "-23.50"
-      # - key: BBOX_SUL
-      #   value: "-23.62"
-      # - key: BBOX_LESTE
-      #   value: "-46.58"
-      # - key: BBOX_OESTE
-      #   value: "-46.70"
+      # Área BEM reduzida ao redor do depósito padrão da demo (Sé, São
+      # Paulo) — ponto de partida seguro. As bibliotecas usadas (osmnx
+      # principalmente) já consomem ~220MB de RAM só sendo importadas, antes
+      # de qualquer grafo carregado — então a folga real pro grafo em si,
+      # dentro de 512MB, é bem menor do que parece à primeira vista. Meça
+      # localmente com `python scripts/warm_cache.py` antes de aumentar essa
+      # área — ele agora reporta o consumo real de memória depois de
+      # carregar o grafo. Ver deploy.md.
+      - key: BBOX_NORTE
+        value: "-23.535"
+      - key: BBOX_SUL
+        value: "-23.565"
+      - key: BBOX_LESTE
+        value: "-46.615"
+      - key: BBOX_OESTE
+        value: "-46.650"
+
+      # Simplifica o grafo (bem menos nós = bem menos RAM). Reintroduz um
+      # risco pequeno de retas em vias sem geometria salva no OSM, mas o
+      # reparo automático via Google (ver README) cobre a maior parte dos
+      # casos. Combinado com a bbox acima, é o que faz o serviço caber
+      # confortavelmente em 512MB. Troque para "false" se migrar pro plano
+      # "standard" (2GB) e quiser abrir mão dessa concessão.
+      - key: GRAFO_SIMPLIFICAR
+        value: "true"
+
+      # Baixa/carrega o grafo QUANDO O PROCESSO SOBE, não na primeira
+      # requisição de um usuário. Isso importa porque a API pública do
+      # Overpass (usada pelo OSMnx pra baixar o mapa) pode ser lenta ou
+      # entrar em fila — fácil de estourar o timeout de uma requisição HTTP
+      # comum. Na fase de boot, o Render só libera tráfego pro serviço
+      # depois do health check responder, então essa demora fica escondida
+      # do usuário em vez de aparecer como erro na tela dele.
+      - key: PRE_AQUECER_GRAFO
+        value: "true"
 
     # Opcional: disco persistente, para o cache do grafo sobreviver a
     # reinícios SEM precisar rebaixar no build de cada novo deploy.
-    # Requer plano pago (não disponível no "free"). Sem isso, o warm_cache.py
-    # no buildCommand já resolve o problema do timeout — o disco só evita
-    # ter que rebaixar tudo de novo a cada novo deploy.
+    # Requer plano pago com disco (não disponível no "free"). Sem isso, o
+    # warm_cache.py no buildCommand já resolve o problema do timeout — o
+    # disco só evita ter que rebaixar tudo de novo a cada novo deploy.
     # disk:
     #   name: grafo-cache
     #   mountPath: /opt/render/project/src/cache
-    #   sizeGB: 2
+    #   sizeGB: 1

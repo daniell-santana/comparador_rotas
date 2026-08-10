@@ -23,6 +23,28 @@ load_dotenv()
 app = Flask(__name__, static_folder=None)
 CORS(app)
 
+
+@app.errorhandler(Exception)
+def erro_json_sempre(e):
+    """Rede de segurança: qualquer erro não tratado explicitamente (em
+    qualquer rota, não só /comparar) vira JSON, nunca a página HTML padrão
+    do Flask. Sem isso, o frontend recebe "<html>..." onde esperava JSON e
+    dispara "Unexpected token '<'" — um erro real fica ilegível atrás de um
+    erro de parsing. O traceback completo ainda vai pro log do servidor
+    (visível em Logs no Render), só a resposta pro navegador que muda."""
+    from werkzeug.exceptions import HTTPException
+    traceback.print_exc()
+    codigo = e.code if isinstance(e, HTTPException) else 500
+    return jsonify({
+        "erro": str(e),
+        "tipo": type(e).__name__,
+    }), codigo
+
+
+@app.errorhandler(404)
+def erro_404_json(e):
+    return jsonify({"erro": "Rota não encontrada.", "tipo": "NotFound"}), 404
+
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
     raise ValueError("GOOGLE_API_KEY não definida no .env")
@@ -588,6 +610,29 @@ def build_info():
     """Consulta rápida (sem precisar rodar uma simulação) pra confirmar se o
     servidor está com o código mais recente: abra /build no navegador."""
     return jsonify({"build": FRONTEND_BUILD})
+
+
+if os.getenv("PRE_AQUECER_GRAFO", "false").lower() in ("1", "true", "yes"):
+    # Roda quando o gunicorn IMPORTA este módulo (boot do worker), antes de
+    # aceitar qualquer requisição — não durante uma requisição do usuário.
+    # Isso importa porque o download do grafo (via API pública do Overpass,
+    # que pode ser lenta ou entrar em fila de espera) pode facilmente passar
+    # do timeout de uma requisição HTTP normal. Na fase de boot, o Render
+    # espera o serviço responder ao health check antes de rotear tráfego pra
+    # ele — muito mais tolerante a demora do que o timeout do gunicorn numa
+    # requisição já em andamento.
+    print("[app] PRE_AQUECER_GRAFO=true — baixando/carregando o grafo agora, "
+          "antes de aceitar requisições...")
+    try:
+        roteirizador.obter_grafo()
+        print("[app] Grafo pré-aquecido com sucesso.")
+    except Exception as e:
+        # Não derruba o processo por causa disso — se falhar aqui, a
+        # primeira requisição a /comparar tenta de novo (e vai logar o
+        # motivo real do erro, em vez do processo nem subir).
+        print(f"[app] ATENÇÃO: pré-aquecimento do grafo falhou ({e}). O "
+              f"serviço vai subir mesmo assim; a primeira simulação vai "
+              f"tentar baixar o grafo na hora.")
 
 
 if __name__ == "__main__":
