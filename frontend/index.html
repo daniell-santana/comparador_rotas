@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Comparador de Rotas — VRP próprio vs Google</title>
+<title>Comparador de Rotas: Algorítimo VRP otimizado vs Google</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
@@ -85,7 +85,7 @@
 </head>
 <body>
 <header>
-  <h1>Comparador de Rotas — VRP próprio vs Google Directions</h1>
+  <h1>Comparador de Rotas: Algorítimo VRP otimizado vs Google Directions</h1>
   <div class="subtitulo">
     Motor próprio (OR-Tools) que resolve o roteamento com capacidade de carga,
     janela de horário por cliente e jornada máxima do motorista. O Google
@@ -134,7 +134,7 @@
       ótima é sempre um laço sem auto-interseção. Se você notar o traçado azul cruzando a si mesmo, o
       motivo quase sempre é <strong>janela de horário</strong>: o cliente mais próximo geograficamente
       pode ter uma janela de entrega mais tarde no dia, obrigando o veículo a "ir buscar" um cliente
-      mais distante primeiro (porque a janela dele fecha antes) e voltar depois para o vizinho — o que
+      mais distante primeiro (porque a janela dele fecha antes) e voltar depois para o vizinho, o que
       aumenta a distância percorrida, mas é a única forma de cumprir os dois compromissos de horário.
       Isso é uma característica normal do VRPTW (VRP com janela de horário) e não do TSP puro que o
       Google resolve, o Google maps não tem esse tipo de restrição pra respeitar, então a rota dele tende a
@@ -172,7 +172,7 @@
     <div class="campo">
       <label>Algoritmo customizado</label>
       <select id="algoritmo">
-        <option value="vrp">VRP com restrições (OR-Tools) — recomendado</option>
+        <option value="vrp">VRP com restrições (OR-Tools), recomendado</option>
         <option value="sa">Simulated Annealing (sem restrições)</option>
       </select>
     </div>
@@ -194,7 +194,7 @@
 
     <div class="graficos">
       <div class="grafico-box">
-        <h4>Distância e tempo — Google vs rota própria</h4>
+        <h4>Distância e tempo: Google vs rota própria</h4>
         <canvas id="graficoComparativo"></canvas>
       </div>
       <div class="grafico-box">
@@ -214,7 +214,7 @@
     <div id="map"></div>
     <div id="comparacaoParadas" class="painel" style="margin-top:16px;"></div>
     <div style="text-align:center; font-size:10.5px; color:#cbd5e1; margin-top:14px;">
-      build do servidor: {{BUILD}} — se você acabou de atualizar o código e a tela não mudou,
+      build do servidor: {{BUILD}} - se você acabou de atualizar o código e a tela não mudou,
       dê um refresh forçado (Ctrl+Shift+R / Cmd+Shift+R) antes de suspeitar de bug.
     </div>
   </div>
@@ -298,17 +298,17 @@ function renderizar(data, origin) {
       const cor = PALETA_VEICULOS[vi % PALETA_VEICULOS.length];
       const coords = veic.coords.map(p => [p[0], p[1]]);
 
-      // Prova do lado do navegador — independente de qualquer cálculo do
+      // Prova do lado do navegador - independente de qualquer cálculo do
       // servidor: mede a distância entre CADA par de pontos consecutivos no
       // array exato que o Leaflet vai desenhar, e avisa se algum salto for
       // grande. Isso fecha o ciclo: se aparecer aqui, o problema está entre
       // o JSON recebido e o desenho; se NÃO aparecer aqui mas a linha ainda
-      // parecer reta, não é um "salto" no dado — é outra coisa.
+      // parecer reta, não é um "salto" no dado - é outra coisa.
       for (let k = 0; k < coords.length - 1; k++) {
         const d = _distanciaHaversineM(coords[k], coords[k + 1]);
         if (d > 300) {
           console.error(`[diagnóstico CLIENT-SIDE] Veículo ${veic.veiculo}: salto de ${Math.round(d)}m ` +
-            `entre os pontos ${k} e ${k + 1} do array recebido do servidor — ${coords[k]} -> ${coords[k + 1]}`);
+            `entre os pontos ${k} e ${k + 1} do array recebido do servidor, ${coords[k]} -> ${coords[k + 1]}`);
         }
       }
 
@@ -321,13 +321,13 @@ function renderizar(data, origin) {
       distCustomTotal += veic.distancia_m;
       tempoCustomTotal += veic.duracao_s;
 
-      // Trechos sem caminho viável real (fallback em linha reta) — não deveria
+      // Trechos sem caminho viável real (fallback em linha reta) - não deveria
       // acontecer após a poda do maior componente conexo, mas se acontecer,
       // fica bem visível em vez de escondido dentro da rota normal.
       (veic.trechos_sem_rua || []).forEach(trecho => {
         const linhaFallback = L.polyline(trecho.map(p => [p[0], p[1]]), {
           color: '#dc2626', weight: 3, opacity: 0.9, dashArray: '2,6'
-        }).addTo(map).bindTooltip('⚠️ Sem caminho viável encontrado nesta malha — linha reta', { sticky: true });
+        }).addTo(map).bindTooltip('⚠️ Sem caminho viável encontrado nesta malha (linha reta)', { sticky: true });
         camadasCustom.push(linhaFallback);
       });
 
@@ -346,14 +346,14 @@ function renderizar(data, origin) {
       });
 
       // Trechos com caminho real encontrado, mas quase perfeitamente retos por
-      // mais de 300m — pode ser via expressa genuinamente reta OU um bug.
+      // mais de 300m - pode ser via expressa genuinamente reta OU um bug.
       // Destacado em laranja com a circuidade exata pra você julgar olhando
       // o trecho específico no mapa (não é garantia de bug, é um alerta).
       (veic.diagnostico_retas || []).forEach(t => {
         const linhaSuspeita = L.polyline(t.coords.map(p => [p[0], p[1]]), {
           color: '#f97316', weight: 4, opacity: 0.95
         }).addTo(map).bindTooltip(
-          `🔶 Circuidade ${t.circuidade} (1.0=reta perfeita), ${t.n_pontos} pontos na via — ` +
+          `🔶 Circuidade ${t.circuidade} (1.0=reta perfeita), ${t.n_pontos} pontos na via, ` +
           'confira no Google Maps se essa via é mesmo reta aqui',
           { sticky: true }
         );
@@ -396,26 +396,26 @@ function renderizar(data, origin) {
   const avisos = [];
   if (data.rota_personalizada.restricoes_relaxadas) {
     avisos.push('⚠️ Não foi possível atender capacidade e janela de horário simultaneamente ' +
-      'com os parâmetros informados — a rota abaixo relaxou essas restrições. Tente aumentar a ' +
+      'com os parâmetros informados, a rota abaixo relaxou essas restrições. Tente aumentar a ' +
       'capacidade/jornada ou reduzir o número de clientes.');
   }
   if (data.rota_personalizada.total_trechos_sem_rua > 0) {
     avisos.push(`⚠️ ${data.rota_personalizada.total_trechos_sem_rua} trecho(s) da rota própria não ` +
       'encontraram caminho viável na malha e usaram linha reta (destacado em vermelho pontilhado no mapa). ' +
-      'Isso não deveria acontecer — se persistir após reiniciar o servidor, avise.');
+      'Isso não deveria acontecer, se persistir após reiniciar o servidor, avise.');
   }
   // Saltos sem geometria: o reparo automático via Google já resolve a
   // maioria; os poucos que sobram (normalmente vias bem curtas, onde o
-  // próprio Google também não acha curva) ficam só no log/console — não
+  // próprio Google também não acha curva) ficam só no log/console - não
   // precisam incomodar o usuário com um aviso na tela toda vez.
   if (data.rota_personalizada.total_trechos_suspeitos > 0) {
     avisos.push(`🔶 ${data.rota_personalizada.total_trechos_suspeitos} trecho(s) real(is) da rota própria ` +
       'ficaram quase perfeitamente retos por mais de 300m (destacado em laranja no mapa). Pode ser via ' +
-      'expressa genuinamente reta, ou não — abra o console (F12) para ver as coordenadas exatas e comparar ' +
+      'expressa genuinamente reta, ou não, abra o console (F12) para ver as coordenadas exatas e comparar ' +
       'com o Google Maps.');
   }
   if (data.rota_personalizada.tempo_real_indisponivel) {
-    avisos.push('ℹ️ Não foi possível obter tempos reais do Google (Routes API) para esta simulação — ' +
+    avisos.push('ℹ️ Não foi possível obter tempos reais do Google (Routes API) para esta simulação, ' +
       'os tempos de deslocamento abaixo usam a estimativa própria baseada no limite de velocidade da via, ' +
       'sem trânsito. Confira se a "Routes API" está habilitada no seu projeto do Google Cloud.');
   }
@@ -428,7 +428,7 @@ function renderizar(data, origin) {
   const esperaTotalAviso = data.rota_personalizada.veiculos.reduce((s, v) => s + (v.tempo_espera_s || 0), 0);
   if (esperaTotalAviso > 3600) {
     avisos.push(`ℹ️ O veículo passou ${formatarDuracao(esperaTotalAviso)} parado esperando a janela do ` +
-      'próximo cliente abrir (não é bug — janelas de horário simuladas caem em qualquer hora do dia). ' +
+      'próximo cliente abrir (não é bug: janelas de horário simuladas caem em qualquer hora do dia). ' +
       'Se isso não for aceitável operacionalmente, use mais veículos ou reduza a variação das janelas.');
   }
   if (avisos.length) {
@@ -440,7 +440,7 @@ function renderizar(data, origin) {
 
   const lista = document.getElementById('paradasLista');
   lista.innerHTML = data.rota_personalizada.veiculos.map(v => `
-    <h4>${nomeAlgoritmo(data)} · Veículo ${v.veiculo} — ${v.carga_kg}/${v.capacidade_kg} kg</h4>
+    <h4>${nomeAlgoritmo(data)} · Veículo ${v.veiculo} | ${v.carga_kg}/${v.capacidade_kg} kg</h4>
     ${v.paradas.map(p => `
       <div class="parada-item ${p.dentro_da_janela === false ? 'atraso' : ''}">
         <span>${p.ordem}. Cliente ${p.cliente_id} (${p.demanda_kg}kg)</span>
@@ -669,12 +669,12 @@ function renderizarComparacao(data) {
     <p style="font-size:12px;color:#64748b;margin:0 0 12px;">
       Simulação do mesmo veículo saindo do depósito às 08:00: de um lado seguindo a ordem sugerida
       pelo Google, do outro seguindo a ordem otimizada pelo ${algo}. Cada trecho mostra a distância e
-      o tempo dirigindo. O Google não trabalha com janela de horário prometida ao cliente — só o
+      o tempo dirigindo. O Google não trabalha com janela de horário prometida ao cliente, só o
       ${algo} considera isso, e por isso só o lado do ${algo} mostra espera e janela.
     </p>
     <div class="itinerarios">${cards}</div>
     <p style="font-size:11.5px;color:#94a3b8;margin:10px 0 0;">
-      📄 <a href="${data.log_url}" target="_blank">baixar log desta simulação</a> — lista, trecho a
+      📄 <a href="${data.log_url}" target="_blank">baixar log desta simulação</a>, lista, trecho a
       trecho, a ordem exata desenhada no mapa e se cada um achou via real ou não. Serve de contraprova
       independente do que está sendo mostrado na tela.
     </p>
@@ -689,7 +689,7 @@ async function comparar() {
   aviso.style.display = 'none';
   loadingDiv.style.display = 'block';
   btn.disabled = true;
-  statusMsg.textContent = 'Calculando malha viária e resolvendo a roteirização (a 1ª execução baixa o grafo de SP e pode levar minutos)...';
+  statusMsg.textContent = 'Calculando malha viária e resolvendo a roteirização (pode levar minutos)...';
 
   const origin = [-23.5505, -46.6333];
   const payload = {
