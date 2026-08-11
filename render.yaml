@@ -74,14 +74,21 @@ services:
       # Paulo). Só importa se cache/grafo_producao.graphml NÃO existir no
       # repositório ainda (senão o arquivo já commitado manda, e essas 4
       # variáveis são ignoradas). Ver deploy.md.
+      # Cobre raio de dispersão de até ~5km a partir do depósito, com ~2km
+      # de margem extra (senão as ruas mais próximas do limite da área nem
+      # aparecem, e o roteador é forçado a dar volta ou falha). Estimativa:
+      # ~33MB de arquivo (escalado a partir do anterior, ~3km²→1.6MB) — bem
+      # menor que o limite de 100MB do GitHub, mas TESTE a memória local
+      # antes de subir (ver deploy.md). Se raio_km no formulário mudar,
+      # ajuste a margem aqui proporcionalmente.
       - key: BBOX_NORTE
-        value: "-23.535"
+        value: "-23.4874"
       - key: BBOX_SUL
-        value: "-23.565"
+        value: "-23.6136"
       - key: BBOX_LESTE
-        value: "-46.615"
+        value: "-46.5645"
       - key: BBOX_OESTE
-        value: "-46.650"
+        value: "-46.7021"
 
       # Simplifica o grafo (bem menos nós = bem menos RAM). Reintroduz um
       # risco pequeno de retas em vias sem geometria salva no OSM, mas o
