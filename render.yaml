@@ -28,9 +28,13 @@ services:
     # sempre ligado (sem dormir após 15min de inatividade), não por RAM.
 
     buildCommand: "pip install -r requirements.txt && python scripts/warm_cache.py"
-    # warm_cache.py baixa e processa o grafo DURANTE o build, não na
-    # primeira requisição — evita timeout no primeiro /comparar depois de
-    # cada deploy. Isso faz o build demorar mais (minutos), o que é normal.
+    # Se cache/grafo_producao.graphml já existir no repositório (commitado —
+    # ver deploy.md "Gere o grafo localmente"), warm_cache.py só CONFIRMA
+    # que ele carrega certo, sem baixar nada. Sem esse arquivo commitado,
+    # baixa via API do Overpass — que se mostrou pouco confiável rodando de
+    # dentro do Render (timeouts recorrentes). Por isso o caminho
+    # recomendado agora é gerar o grafo na sua máquina e commitar o
+    # resultado, não depender do Overpass respondendo em produção.
 
     startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 300"
     # --workers 1: o grafo de ruas fica em memória por processo; múltiplos
@@ -60,14 +64,16 @@ services:
       - key: PYTHON_VERSION
         value: "3.12.3"
 
+      # Nome FIXO do arquivo de cache (em vez do nome dinâmico baseado em
+      # bbox/simplify) — precisa ser esse valor exato pra bater com o
+      # arquivo que você vai gerar localmente e commitar (ver deploy.md).
+      - key: GRAPH_CACHE_PATH
+        value: "cache/grafo_producao.graphml"
+
       # Área BEM reduzida ao redor do depósito padrão da demo (Sé, São
-      # Paulo) — ponto de partida seguro. As bibliotecas usadas (osmnx
-      # principalmente) já consomem ~220MB de RAM só sendo importadas, antes
-      # de qualquer grafo carregado — então a folga real pro grafo em si,
-      # dentro de 512MB, é bem menor do que parece à primeira vista. Meça
-      # localmente com `python scripts/warm_cache.py` antes de aumentar essa
-      # área — ele agora reporta o consumo real de memória depois de
-      # carregar o grafo. Ver deploy.md.
+      # Paulo). Só importa se cache/grafo_producao.graphml NÃO existir no
+      # repositório ainda (senão o arquivo já commitado manda, e essas 4
+      # variáveis são ignoradas). Ver deploy.md.
       - key: BBOX_NORTE
         value: "-23.535"
       - key: BBOX_SUL

@@ -3,9 +3,13 @@
 .env.*
 !.env.example
 
-# Cache do grafo de ruas (gerado automaticamente, pode ter centenas de MB)
+# Cache do grafo de ruas (gerado automaticamente, pode ter centenas de MB).
+# Exceção: cache/grafo_producao.graphml é commitado DE PROPÓSITO — ver
+# deploy.md ("Gere o grafo localmente"). Isso evita depender da API do
+# Overpass rodando dentro do Render, que se mostrou pouco confiável de lá.
 cache/*.graphml
 cache/*.graphml.gz
+!cache/grafo_producao.graphml
 
 # Logs de verificação (gerados a cada simulação, não fazem parte do código)
 logs/

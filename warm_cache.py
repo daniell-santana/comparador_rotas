@@ -22,6 +22,12 @@ import os
 import sys
 import time
 
+from dotenv import load_dotenv
+
+load_dotenv()  # sem isso, as variáveis do .env local nunca eram lidas —
+                # só ficavam disponíveis se você exportasse manualmente no
+                # terminal, ou já estivessem definidas no ambiente (Render)
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import routing_engine  # noqa: E402
