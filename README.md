@@ -20,7 +20,7 @@ A aplicação resolve o **VRP (Vehicle Routing Problem)** simulando dois cenári
 * **Abordagem:** Utiliza o motor de mapas do Google para calcular trajetos ponto a ponto com alta precisão. Ele processa matrizes de distância e tempo levando em conta o trânsito em tempo real, restrições de tráfego e infraestrutura viária real.
 * **Limitação:**  Ela calcula o melhor caminho para uma sequência predefinida, mas não decide estrategicamente qual veículo deve atender qual cliente quando há limites de capacidade e dezenas de destinos sobrepostos.
 
-### 2. Rota Otimizada (Google OR-Tools)
+### 2. Rota Otimizada (OR-Tools)
 * **Abordagem:**  Atua como a camada de inteligência matemática do projeto. Ele recebe as matrizes reais de distância e tempo geradas pelo Google Directions e aplica algoritmos avançados de otimização de restrições e meta-heurísticas.
 * **Diferencial:** O OR-Tools rearranja globalmente toda a operação. Ele descobre a melhor combinação de paradas entre múltiplos veículos simultaneamente, garantindo o respeito estrito a janelas de horário e limites de capacidade de carga, reduzindo a quilometragem total que a API do Google roteará depois.
 
