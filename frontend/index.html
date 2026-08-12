@@ -85,18 +85,17 @@
 </head>
 <body>
 <header>
-  <h1>Comparador de Rotas: Algorítimo VRP otimizado vs Google Directions</h1>
+  <h1>Comparador de Rotas: Modelo próprio de otimização de rotas vs Google Directions</h1>
   <div class="subtitulo">
     Motor próprio (OR-Tools) que resolve o roteamento com capacidade de carga,
     janela de horário por cliente e jornada máxima do motorista. O Google
     Directions, usado como referência, otimiza apenas distância e não suporta
-    essas restrições, por isso o comparativo de km é ilustrativo, não uma
-    disputa justa entre iguais.
+    essas restrições.
   </div>
 </header>
 
 <details class="metodologia">
-  <summary>ℹ️ Sobre este modelo: o que é, e por que uma empresa usaria isso em vez de só abrir o Google Maps</summary>
+  <summary>ⓘSobre este modelo: o que é, e por que uma empresa usaria isso em vez de só abrir o Google Maps</summary>
   <div class="corpo">
     <h5>É um algoritmo heurístico, não exato</h5>
     <p>
@@ -418,7 +417,7 @@ function renderizar(data, origin) {
       'com o Google Maps.');
   }
   if (data.rota_personalizada.tempo_real_indisponivel) {
-    avisos.push('ℹ️ Não foi possível obter tempos reais do Google (Routes API) para esta simulação, ' +
+    avisos.push('ⓘNão foi possível obter tempos reais do Google (Routes API) para esta simulação, ' +
       'os tempos de deslocamento abaixo usam a estimativa própria baseada no limite de velocidade da via, ' +
       'sem trânsito. Confira se a "Routes API" está habilitada no seu projeto do Google Cloud.');
   }
@@ -430,7 +429,7 @@ function renderizar(data, origin) {
   });
   const esperaTotalAviso = data.rota_personalizada.veiculos.reduce((s, v) => s + (v.tempo_espera_s || 0), 0);
   if (esperaTotalAviso > 3600) {
-    avisos.push(`ℹ️ O veículo passou ${formatarDuracao(esperaTotalAviso)} parado esperando a janela do ` +
+    avisos.push(`ⓘO veículo passou ${formatarDuracao(esperaTotalAviso)} parado esperando a janela do ` +
       'próximo cliente abrir (não é bug: janelas de horário simuladas caem em qualquer hora do dia). ' +
       'Se isso não for aceitável operacionalmente, use mais veículos ou reduza a variação das janelas.');
   }
@@ -677,9 +676,8 @@ function renderizarComparacao(data) {
     </p>
     <div class="itinerarios">${cards}</div>
     <p style="font-size:11.5px;color:#94a3b8;margin:10px 0 0;">
-      📄 <a href="${data.log_url}" target="_blank">baixar log desta simulação</a>, lista, trecho a
-      trecho, a ordem exata desenhada no mapa e se cada um achou via real ou não. Serve de contraprova
-      independente do que está sendo mostrado na tela.
+      📄 <a href="${data.log_url}" target="_blank">exporta a lista detalhada e a ordem exata do trajeto desenhado no mapa</a>. 
+      lods de Contraprova independente dos dados exibidos na tela.
     </p>
   `;
 }
