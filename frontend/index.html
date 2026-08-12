@@ -467,7 +467,7 @@ function renderizarModeloInfo(data) {
   ).join('');
 
   div.innerHTML = `
-    <h4>⚙️ Modelo desta simulação</h4>
+    <h4>Modelo desta simulação</h4>
     <div class="linha"><span>Algoritmo</span><span>${m.algoritmo_nome}</span></div>
     ${linhasHiper}
     <div class="linha"><span>Função objetivo</span><span>${m.funcao_objetivo}</span></div>
@@ -667,7 +667,7 @@ function renderizarComparacao(data) {
   });
 
   div.innerHTML = `
-    <h3 style="margin-top:0;font-size:14px;">📊 Mesmo carro, mesma hora de saída (08:00), dois trajetos possíveis</h3>
+    <h3 style="margin-top:0;font-size:14px;">Mesmo carro, mesma hora de saída (08:00), dois trajetos possíveis</h3>
     <p style="font-size:12px;color:#64748b;margin:0 0 12px;">
       Simulação do mesmo veículo saindo do depósito às 08:00: de um lado seguindo a ordem sugerida
       pelo Google, do outro seguindo a ordem otimizada pelo ${algo}. Cada trecho mostra a distância e
