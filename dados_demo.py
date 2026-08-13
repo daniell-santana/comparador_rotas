@@ -2,7 +2,7 @@
 Geração de clientes simulados para o modo demo: posição geográfica, demanda
 de carga (kg) e janela de horário de entrega. Em uma versão com endereços
 reais, este módulo seria substituído por geocodificação + integração com o
-sistema de pedidos da empresa — mas o restante do pipeline (matrizes,
+sistema de pedidos da empresa, mas o restante da pipeline (matrizes,
 solver VRP, resposta da API) não muda.
 """
 import random
