@@ -4,17 +4,14 @@ Matriz de tempo de viagem via Routes API do Google (computeRouteMatrix).
 Por que isso existe: a distância real de rua (OSMnx) e o tempo de viagem são
 duas coisas diferentes. Estimar tempo como "distância / velocidade da via"
 (o que routing_engine.calcular_matrizes faz) ignora semáforos, cruzamentos,
-paradas e trânsito — o Google, mesmo sem trânsito ao vivo, já modela isso
+paradas e trânsito, o Google, mesmo sem trânsito ao vivo, já modela isso
 com dados históricos reais, e por isso as duas estimativas de tempo podem
 divergir MUITO (observado: ~42 km/h no modelo simples vs ~19 km/h no Google
 para o mesmo trajeto). Comparar "tempo dirigindo" da rota própria contra o
 tempo do Google só é uma comparação justa se os dois usarem a MESMA fonte de
-tempo — por isso esta matriz busca o tempo diretamente do Google para os
+tempo, por isso esta matriz busca o tempo diretamente do Google para os
 mesmos pares de pontos, e o motor de roteirização usa isso em vez da
 estimativa própria sempre que a chamada tiver sucesso.
-
-A distância (km) continua vindo do OSMnx — essa parte já é real e é o que
-desenha a rota no mapa; só o TEMPO precisava de uma fonte melhor.
 """
 import os
 
@@ -64,7 +61,7 @@ def matriz_tempo_google(pontos, tempo_real=True):
     Retorna matriz NxN de segundos, com NaN nas posições em que o Google não
     retornou uma rota (para o chamador decidir se cai de volta para outra
     fonte). Pode levantar exceção (erro de rede, API não habilitada,
-    quota excedida) — o chamador deve tratar isso e ter um fallback, nunca
+    quota excedida),o chamador deve tratar isso e ter um fallback, nunca
     travar a aplicação por causa desta chamada extra.
     """
     n = len(pontos)
