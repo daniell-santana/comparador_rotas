@@ -1,8 +1,8 @@
 """
 Simulated Annealing para o TSP puro (1 veículo, sem capacidade, sem janela
 de horário, sem jornada máxima). Mantido como alternativa mais simples para
-efeito de comparação com o solver de VRP — em cenários reais com restrições
-operacionais, o VRP (routing_engine.resolver_vrp) é o recomendado.
+efeito de comparação com o solver de VRP, em cenários reais com restrições
+operacionais.
 """
 import math
 import random
