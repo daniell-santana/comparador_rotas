@@ -26,12 +26,6 @@ CORS(app)
 
 @app.errorhandler(Exception)
 def erro_json_sempre(e):
-    """Rede de segurança: qualquer erro não tratado explicitamente (em
-    qualquer rota, não só /comparar) vira JSON, nunca a página HTML padrão
-    do Flask. Sem isso, o frontend recebe "<html>..." onde esperava JSON e
-    dispara "Unexpected token '<'" — um erro real fica ilegível atrás de um
-    erro de parsing. O traceback completo ainda vai pro log do servidor
-    (visível em Logs no Render), só a resposta pro navegador que muda."""
     from werkzeug.exceptions import HTTPException
     traceback.print_exc()
     codigo = e.code if isinstance(e, HTTPException) else 500
@@ -61,9 +55,8 @@ _cache_reparo = {}  # evita rechamar a API pro mesmo par de pontos na mesma exec
 def reparar_segmento_reto(origem, destino):
     """Busca no Google Directions API a geometria real de um trecho pontual
     (origem->destino direto, sem waypoints), pra substituir cirurgicamente um
-    salto reto detectado no OSMnx — chamado só para os poucos trechos
-    sinalizados (raro), nunca para a rota inteira. Retorna None se não
-    conseguir melhorar nada (nesse caso o salto reto original é mantido)."""
+    salto reto detectado no OSMnx, chamado só para os poucos trechos
+    sinalizados (raro), nunca para a rota inteira."""
     chave = (round(origem[0], 5), round(origem[1], 5), round(destino[0], 5), round(destino[1], 5))
     if chave in _cache_reparo:
         return _cache_reparo[chave]
@@ -82,10 +75,6 @@ def reparar_segmento_reto(origem, destino):
         coords = pl.decode(resp["routes"][0]["overview_polyline"]["points"])
         coords = [[lat, lng] for lat, lng in coords]
         if len(coords) <= 2:
-            # A API respondeu OK, mas o próprio Google também não achou curva
-            # pra esse trecho — não é uma falha, é uma CONFIRMAÇÃO de que a
-            # via é curta/reta mesmo (comum abaixo de ~400m). Não substitui
-            # por nada "melhor", porque não existe nada melhor a substituir.
             print(f"[app] Reparo via Google CONFIRMOU reta (não é falha): {origem}->{destino} — "
                   f"o próprio Google também devolveu só {len(coords)} pontos pra esse trecho curto.")
             _cache_reparo[chave] = None
@@ -102,7 +91,7 @@ def reparar_segmento_reto(origem, destino):
 
 def rota_google(origin, destinations):
     """TSP puro via Google Directions API (optimize:true). Não suporta
-    capacidade de carga nem janela de horário — serve como referência de
+    capacidade de carga nem janela de horário, serve como referência de
     mercado, não como concorrente direto do VRP. departure_time=now pede
     duração com trânsito real (sem isso, o Google devolve uma estimativa
     típica sem trânsito ao vivo, que é o que causava divergência de tempo
@@ -117,12 +106,6 @@ def rota_google(origin, destinations):
     if resposta["status"] != "OK":
         raise Exception(f"Erro Google API: {resposta['status']} - {resposta.get('error_message', '')}")
     rota = resposta["routes"][0]
-    # Com múltiplos waypoints, o Google devolve uma perna (leg) por trecho
-    # (depósito -> parada 1 -> parada 2 -> ... -> depósito). A distância/tempo
-    # da rota inteira é a SOMA de todas as pernas, não apenas legs[0]. Com
-    # departure_time definido, cada perna tem 'duration' (típica, sem
-    # trânsito) E 'duration_in_traffic' (com trânsito real) — preferimos a
-    # segunda quando disponível.
     def _duracao_leg(leg):
         return leg.get("duration_in_traffic", leg["duration"])["value"]
 
@@ -131,8 +114,7 @@ def rota_google(origin, destinations):
 
     # Horário estimado de chegada em cada parada, assumindo saída às
     # EXPEDIENTE_INICIO_H (mesma referência usada na rota própria, para a
-    # comparação lado a lado fazer sentido). O último leg é o retorno ao
-    # depósito, por isso fica de fora do acumulado por parada.
+    # comparação lado a lado fazer sentido).
     chegadas, acumulado = [], 0
     for leg in rota["legs"][:-1]:
         acumulado += _duracao_leg(leg)
@@ -183,8 +165,8 @@ def comparar():
         # A distância continua vindo do OSMnx (é o que desenha a rota no mapa
         # e já é real). O tempo estimado por "distância / velocidade da via"
         # ignora semáforo, cruzamento e trânsito, e pode divergir muito do
-        # tempo real do Google — então buscamos o tempo direto do Google para
-        # os mesmos pares de pontos, e SÓ caímos de volta para a estimativa
+        # tempo real do Google, então busquei o tempo direto do Google para
+        # os mesmos pares de pontos, e SÓ caí de volta para a estimativa
         # própria onde a chamada falhar ou não retornar rota.
         tempo_real_indisponivel = False
         try:
@@ -281,7 +263,7 @@ def comparar():
                               f"disponível. Ainda aparece como reta no mapa.")
 
             # Checagem final, no array JÁ COSTURADO (pós-concatenação dos
-            # trechos) — tudo acima verifica cada trecho ISOLADO; isso aqui
+            # trechos),  tudo acima verifica cada trecho ISOLADO; isso aqui
             # verifica especificamente a COSTURA entre um trecho e o
             # próximo, ponto a ponto, no exato array que vai pro navegador.
             # Se existir bug na concatenação (não nos trechos individuais),
@@ -355,7 +337,7 @@ def comparar():
 
             # Pernas (trechos) da rota, na ordem percorrida, incluindo a volta
             # ao depósito. Isola por trecho quanto foi deslocamento e quanto
-            # foi espera — é o que permite ver ONDE exatamente a espera
+            # foi espera,  é o que permite ver ONDE exatamente a espera
             # aconteceu, em vez de só o total acumulado.
             def _nome_no(idx):
                 return "Depósito" if idx == 0 else f"Cliente {clientes[idx - 1]['id']}"
@@ -539,9 +521,9 @@ def comparar():
 def _gravar_log_verificacao(resposta, num_clientes, num_veiculos, algoritmo):
     """Grava um .txt legível cruzando, PARA CADA TRECHO desenhado no mapa, a
     ordem exata em que ele foi percorrido, se achou via real ou caiu em
-    fallback, e a circuidade — para servir de contraprova independente do
-    que é mostrado na tela. Sempre sobrescreve 'ultima_simulacao.txt' (fácil
-    de achar) e também grava uma cópia com timestamp (histórico)."""
+    fallback, e a circuidade, para servir de contraprova independente do
+    que é mostrado na tela. Sempre sobrescreve 'ultima_simulacao.txt'
+    e também grava uma cópia com timestamp (histórico)."""
     linhas = [
         f"=== LOG DE VERIFICAÇÃO — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===",
         f"Parâmetros: {num_clientes} clientes, {num_veiculos} veículo(s), algoritmo={algoritmo}",
@@ -595,9 +577,7 @@ def servir_log(nome_arquivo):
 @app.route("/")
 def servir_frontend():
     # Cache-Control: no-store força o navegador a sempre buscar a versão mais
-    # nova do HTML/JS no servidor, em vez de reaproveitar uma versão antiga
-    # já salva localmente — depois de tantas rodadas de correção, isso evita
-    # a dúvida "será que estou vendo o código atualizado?".
+    # nova do HTML/JS no servidor, em vez de reaproveitar uma versão antiga.
     html = Path("frontend/index.html").read_text(encoding="utf-8")
     html = html.replace("{{BUILD}}", FRONTEND_BUILD)
     resp = app.response_class(html, mimetype="text/html")
@@ -614,20 +594,17 @@ def build_info():
 
 if os.getenv("PRE_AQUECER_GRAFO", "false").lower() in ("1", "true", "yes"):
     # Roda quando o gunicorn IMPORTA este módulo (boot do worker), antes de
-    # aceitar qualquer requisição — não durante uma requisição do usuário.
+    # aceitar qualquer requisição, não durante uma requisição do usuário.
     # Isso importa porque o download do grafo (via API pública do Overpass,
     # que pode ser lenta ou entrar em fila de espera) pode facilmente passar
-    # do timeout de uma requisição HTTP normal. Na fase de boot, o Render
-    # espera o serviço responder ao health check antes de rotear tráfego pra
-    # ele — muito mais tolerante a demora do que o timeout do gunicorn numa
-    # requisição já em andamento.
+    # do timeout de uma requisição HTTP normal.
     print("[app] PRE_AQUECER_GRAFO=true — baixando/carregando o grafo agora, "
           "antes de aceitar requisições...")
     try:
         roteirizador.obter_grafo()
         print("[app] Grafo pré-aquecido com sucesso.")
     except Exception as e:
-        # Não derruba o processo por causa disso — se falhar aqui, a
+        # Não derruba o processo por causa disso, se falhar aqui, a
         # primeira requisição a /comparar tenta de novo (e vai logar o
         # motivo real do erro, em vez do processo nem subir).
         print(f"[app] ATENÇÃO: pré-aquecimento do grafo falhou ({e}). O "
