@@ -2,21 +2,13 @@
 Aquece o cache do grafo de ruas ANTES do serviço começar a receber
 requisições. Sem isso, a primeira chamada a /comparar depois de cada deploy
 dispararia o download do OpenStreetMap (minutos) dentro do tempo de resposta
-da requisição — e provavelmente estouraria o timeout do servidor de produção
+da requisição e provavelmente estouraria o timeout do servidor de produção
 (gunicorn) ou do proxy da hospedagem.
 
 Uso: chamado automaticamente pelo buildCommand do render.yaml. Também pode
 ser rodado manualmente pra testar ANTES de fazer deploy:
 
     python scripts/warm_cache.py
-
-Reporta o uso real de memória (RSS) depois de carregar o grafo — compare
-esse número com o teto do seu plano de hospedagem (512MB no free/starter do
-Render) antes de fazer deploy, em vez de descobrir isso em produção.
-
-Não depende de GOOGLE_API_KEY (só toca o grafo, não a API do Google), então
-funciona mesmo se essa variável ainda não estiver configurada no ambiente
-de build.
 """
 import os
 import sys
@@ -24,9 +16,7 @@ import time
 
 from dotenv import load_dotenv
 
-load_dotenv()  # sem isso, as variáveis do .env local nunca eram lidas —
-                # só ficavam disponíveis se você exportasse manualmente no
-                # terminal, ou já estivessem definidas no ambiente (Render)
+load_dotenv() 
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -36,7 +26,7 @@ import routing_engine  # noqa: E402
 def _memoria_atual_mb():
     """Memória residente (RSS) do processo atual, em MB. Funciona em
     Linux/Mac (inclusive no Render, que é Linux) via o módulo padrão
-    'resource'. No Windows local, esse módulo não existe — nesse caso,
+    'resource'. No Windows local, esse módulo não existe, nesse caso,
     acompanhe pelo Gerenciador de Tarefas enquanto o script roda."""
     try:
         import resource
