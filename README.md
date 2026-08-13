@@ -9,7 +9,7 @@
 
 Uma ferramenta analítica desenvolvida para comparar cenários de logística, confrontando o cálculo de rotas tradicionais ponto a ponto (Google Directions) com uma solução avançada de **otimização de rotas** baseada no problema de roteamento de veículos (VRP).
 
-O objetivo principal é demonstrar de forma técnica e visual a redução de custos operacionais e a eficiência de quilometragem obtida através de inteligência matemática.
+O objetivo principal é demonstrar de forma técnica e visual a redução de custos operacionais e a eficiência de quilometragem obtida através de algoritmos heurísticos.
 
 ---
 ## O que a aplicação faz
