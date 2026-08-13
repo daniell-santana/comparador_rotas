@@ -27,7 +27,7 @@ VELOCIDADE_PADRAO_KMH = 30  # fallback para vias sem 'maxspeed' no OSM
 # de retas em vias sem geometria salva — mitigado pelo reparo automático via
 # Google, ver montar_geometria_rota). Padrão é não simplificar (mais preciso,
 # mais RAM). Em hospedagem com pouca memória, combine isso com BBOX_* antes
-# de simplesmente pagar por uma máquina maior — normalmente resolve sem custo.
+# de simplesmente pagar por uma máquina maior.
 GRAFO_SIMPLIFICAR = os.getenv("GRAFO_SIMPLIFICAR", "false").lower() in ("1", "true", "yes")
 
 TEMPO_LIMITE_BUSCA_PADRAO_S = 20
@@ -49,10 +49,9 @@ _grafo_lock = threading.Lock()
 
 def _bbox_configurado():
     """Se as 4 variáveis de ambiente BBOX_* estiverem definidas, baixa só
-    esse retângulo em vez da cidade inteira — reduz MUITO o uso de memória
+    esse retângulo em vez da cidade inteira, reduz MUITO o uso de memória
     (importante para hospedagem com RAM limitada, como o plano gratuito ou
-    Starter do Render — os dois têm 512MB, então isso importa mesmo pagando).
-    Retorna (norte, sul, leste, oeste) ou None se não configurado."""
+    Starter do Render, os dois têm 512MB, então isso importa mesmo pagando)."""
     chaves = ("BBOX_NORTE", "BBOX_SUL", "BBOX_LESTE", "BBOX_OESTE")
     valores = [os.getenv(k) for k in chaves]
     if all(valores):
@@ -98,22 +97,6 @@ def obter_grafo():
             G = ox.load_graphml(GRAPH_CACHE_PATH)
         else:
             bbox = _bbox_configurado()
-            # GRAFO_SIMPLIFICAR=false (padrão) é a correção definitiva pros
-            # "saltos retos" encontrados: com simplify=True, o OSMnx funde
-            # vários vértices intermediários de uma via numa única aresta e
-            # guarda a curva num atributo 'geometry' — mas isso só funciona
-            # quando essa via NÃO passou por consolidação (ou quando o
-            # próprio dado do OSM já não tinha vértices intermediários
-            # digitalizados, comum em trevos/viadutos de áreas mapeadas de
-            # forma mais grosseira, como confirmamos perto do Glicério/
-            # Parque Dom Pedro II). Sem simplificar, CADA vértice original
-            # do desenho da via no OSM vira um nó de verdade no grafo — não
-            # existe mais "aresta longa sem geometria salva". Custa mais
-            # grafo em memória (por isso o suporte a BBOX_* e a
-            # GRAFO_SIMPLIFICAR=true como válvulas de escape em hospedagem
-            # com RAM limitada) e um shortest_path um pouco mais lento; a
-            # troca vale a pena pela garantia visual sempre que a memória
-            # disponível permitir.
             if bbox:
                 norte, sul, leste, oeste = bbox
                 print(f"[routing_engine] Baixando grafo do OpenStreetMap para a bbox "
@@ -128,13 +111,6 @@ def obter_grafo():
                 G = ox.graph_from_place(PLACE_NAME, network_type="drive", simplify=GRAFO_SIMPLIFICAR)
             precisa_resalvar = True
 
-        # Extrações de cidade inteira quase sempre trazem "ilhas" de ruas sem
-        # conexão dirigível com a malha principal (becos, erros de mapeamento
-        # no OSM). Sem podar isso, um par de pontos em componentes diferentes
-        # não tem caminho real entre si e o sistema cai num fallback de linha
-        # reta — que não existe na vida real. Rodar sempre (mesmo em cache já
-        # existente) porque é idempotente e cachês antigos podem não ter passado
-        # por essa poda.
         G, foi_podado = _garantir_componente_conexo(G)
         precisa_resalvar = precisa_resalvar or foi_podado
 
@@ -238,15 +214,15 @@ def calcular_matrizes(pontos, grafo):
 
 def _coords_do_trecho(grafo, u, v):
     """Coordenadas [lat,lng] do trecho de rua entre os nós u e v, e se usou
-    geometria real da via (True) ou caiu numa reta nó-a-nó (False) — usa a
+    geometria real da via (True) ou caiu numa reta nó-a-nó (False, usa a
     geometria real (atributo 'geometry', um shapely LineString) quando
-    disponível — o OSMnx guarda isso em arestas resultantes de simplificação
+    disponível, o OSMnx guarda isso em arestas resultantes de simplificação
     (fusão de vários cruzamentos intermediários numa via mais longa). Sem
     usar essa geometria, ligar só os dois nós-extremos com reta corta a curva
     real da via. Cai numa reta nó-a-nó só quando a aresta realmente não tem
-    geometria salva — o que É esperado para trechos curtos entre cruzamentos
+    geometria salva, o que É esperado para trechos curtos entre cruzamentos
     vizinhos (reta e curva real coincidem), mas fica sinalizado quando esse
-    salto é longo, porque aí sim é suspeito."""
+    salto é longo."""
     dados = min(grafo[u][v].values(), key=lambda d: d.get("length", 0))
     geometria = dados.get("geometry")
     if geometria is not None:
@@ -290,24 +266,22 @@ def montar_geometria_rota(ordem, pontos, rotas, grafo, reparo_callback=None):
     'suspeito_reta': bool, 'saltos_sem_geometria': [...]}.
 
     'real'=False só ocorre quando calcular_matrizes não achou caminho na
-    malha viária entre os dois pontos (fallback em linha reta) — não deveria
-    mais acontecer após a poda do maior componente conexo.
+    malha viária entre os dois pontos.
 
     'suspeito_reta'=True é um alerta sobre o trecho INTEIRO (ponta a ponta)
-    ficar quase perfeitamente reto — mas um trecho longo com muitos pontos
+    ficar quase perfeitamente reto, mas um trecho longo com muitos pontos
     pode ter boa circuidade MÉDIA mesmo escondendo, no meio dele, um único
     salto reto e longo entre dois nós vizinhos sem geometria salva. Isso
     acontece quando a via original do OpenStreetMap, naquele pedaço
     específico, foi digitalizada com poucos vértices (comum em trevos/
-    viadutos de áreas mapeadas de forma mais grosseira) — não é um bug de
+    viadutos de áreas mapeadas de forma mais grosseira), não é um bug de
     simplificação, é limitação do dado fonte.
 
-    reparo_callback(origem, destino) -> [[lat,lng],...] | None — se
+    reparo_callback(origem, destino) -> [[lat,lng],...] | None: se
     fornecido, é chamado SÓ para os saltos detectados (raro), pra buscar a
     geometria real desse pedacinho específico numa fonte externa (ex:
     Google Directions) e substituir a reta por ela. O resto da rota
-    continua vindo do OSMnx normalmente — é um conserto cirúrgico, não uma
-    troca de fonte de dado inteira."""
+    continua vindo do OSMnx normalmente."""
     trechos = []
     for i in range(len(ordem)):
         u, v = ordem[i], ordem[(i + 1) % len(ordem)]
@@ -364,18 +338,18 @@ def resolver_vrp(D, Tm, demandas, capacidades, janelas, horizonte_relogio_s,
     janelas:    lista de N tuplas (inicio_s, fim_s) no relógio do dia
                 (0 = início do expediente); janelas[deposito] tipicamente
                 (0, horizonte_relogio_s)
-    horizonte_relogio_s: duração do expediente (ex.: 08h-18h = 36000s) — teto
+    horizonte_relogio_s: duração do expediente (ex.: 08h-18h = 36000s), teto
                 do relógio da rota E o quanto o veículo pode ficar parado
                 esperando a janela do próximo cliente abrir.
     tempo_maximo_por_veiculo: jornada de trabalho do motorista (deslocamento
-                + atendimento). Tempo de ESPERA parado NÃO consome jornada —
+                + atendimento). Tempo de ESPERA parado NÃO consome jornada,
                 se o motorista tem 5h de jornada e passa 3h dirigindo/
                 atendendo, sobram 2h de saldo, mesmo que ele tenha ficado
                 parado horas esperando uma janela abrir.
     deposito:   índice do depósito (0 por padrão)
 
-    Retorna lista de dicts por veículo — {'ordem': [nós], 'chegadas': [segundos
-    no relógio do dia]} — ou None se não houver solução viável.
+    Retorna lista de dicts por veículo, {'ordem': [nós], 'chegadas': [segundos
+    no relógio do dia]}, ou None se não houver solução viável.
     """
     n = D.shape[0]
     manager = pywrapcp.RoutingIndexManager(n, num_veiculos, deposito)
@@ -401,7 +375,7 @@ def resolver_vrp(D, Tm, demandas, capacidades, janelas, horizonte_relogio_s,
         demanda_idx, 0, [int(c) for c in capacidades], True, "Capacidade"
     )
 
-    # Dimensão 1 — Relógio do dia: garante a janela de horário de cada
+    # Dimensão 1: Relógio do dia: garante a janela de horário de cada
     # cliente. Slack generoso (até o horizonte inteiro) permite o veículo
     # esperar parado até a janela do próximo cliente abrir, sem violar nada.
     horizonte_int = int(horizonte_relogio_s)
@@ -412,7 +386,7 @@ def resolver_vrp(D, Tm, demandas, capacidades, janelas, horizonte_relogio_s,
         inicio, fim = janelas[node]
         dim_relogio.CumulVar(idx).SetRange(int(inicio), int(fim))
 
-    # Dimensão 2 — Jornada de trabalho: soma só o tempo de deslocamento entre
+    # Dimensão 2: Jornada de trabalho: soma só o tempo de deslocamento entre
     # paradas (slack=0 → tempo parado esperando não entra na conta), limitada
     # à jornada máxima de cada veículo.
     jornada_int = int(tempo_maximo_por_veiculo)
