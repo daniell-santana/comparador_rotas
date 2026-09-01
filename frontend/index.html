@@ -224,7 +224,15 @@ const PALETA_VEICULOS = ['#2563eb', '#7c3aed', '#0891b2', '#ca8a04', '#059669', 
 
 const map = L.map('map').setView([-23.5505, -46.6333], 12);
 // CartoDB Positron ("Light Classic"): visual clean/claro
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+// CARTO_API_KEY é injetada pelo backend (servir_frontend em app.py) a partir
+// da variável de ambiente CARTO_API_KEY — nunca fica com valor real neste
+// arquivo versionado. A CARTO passou a exigir essa chave nos basemaps
+// raster; sem ela os tiles carregam normalmente, só com uma marca d'água
+// "API key required".
+const CARTO_API_KEY = "{{CARTO_API_KEY}}";
+const CARTO_TILE_URL = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+  + (CARTO_API_KEY ? '?key=' + encodeURIComponent(CARTO_API_KEY) : '');
+L.tileLayer(CARTO_TILE_URL, {
   attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>, &copy; OpenStreetMap contributors',
   subdomains: 'abcd',
   maxZoom: 20,
