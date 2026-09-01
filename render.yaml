@@ -4,12 +4,8 @@
 #   1. No dashboard do Render, clique em "New" -> "Blueprint".
 #   2. Conecte o repositório GitHub deste projeto.
 #   3. O Render lê este arquivo automaticamente e propõe criar o serviço
-#      abaixo. Você vai ser solicitado a preencher GOOGLE_API_KEY na hora
-#      (por causa do "sync: false" — o valor NUNCA fica neste arquivo).
-#
-# Leia deploy.md antes do primeiro deploy, em especial a seção sobre
-# dimensionar o grafo, porque isso decide se o serviço cabe no plano ou na VM escolhida.
-#
+#      abaixo. Você vai ser solicitado a preencher GOOGLE_API_KEY
+
 
 services:
   - type: web
@@ -22,7 +18,7 @@ services:
     startCommand: "gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 300"
     # --workers 1: o grafo de ruas fica em memória por processo; múltiplos
     #   workers multiplicariam o uso de RAM (cada um guardaria sua própria
-    #   cópia) — com 512MB de teto.
+    #   cópia) com 512MB de teto.
     # (sem --threads: o worker padrão do gunicorn é "sync", que processa uma
     #   requisição por vez
     # --timeout 300: rotas com muitos clientes podem levar um tempo real
@@ -39,6 +35,16 @@ services:
         # Blueprint (ou depois, em Settings -> Environment). Precisa ter
         # Directions API E Routes API habilitadas no Google Cloud Console
         # para essa chave, ver README.md.
+
+      - key: CARTO_API_KEY
+        sync: false
+        # Chave dos basemaps CARTO usada pelo mapa Leaflet no frontend.
+        # Assim como GOOGLE_API_KEY, "sync: false" só declara a variável
+        # aqui o valor nunca fica neste arquivo. Se ela já foi configurada
+        # manualmente no dashboard do Render (Settings -> Environment), essa
+        # declaração NÃO apaga nem sobrescreve o valor já salvo lá; ela só
+        # garante que o Blueprint "conheça" a variável. Gere uma chave
+        # gratuita em https://carto.com/basemaps/apikey.
 
       - key: PYTHON_VERSION
         value: "3.12.3"
