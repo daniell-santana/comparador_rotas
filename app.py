@@ -43,6 +43,17 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
     raise ValueError("GOOGLE_API_KEY não definida no .env")
 
+# Chave dos basemaps CARTO (usada só pelo frontend, no L.tileLayer do mapa).
+# A CARTO passou a exigir essa chave nos basemaps raster (light_all etc.);
+# sem ela o mapa continua funcionando, mas aparece com uma marca d'água
+# "API key required" sobre os tiles. Não é crítica para o cálculo/comparação
+# de rotas, então aqui só avisamos no log em vez de derrubar o servidor.
+CARTO_API_KEY = os.getenv("CARTO_API_KEY", "")
+if not CARTO_API_KEY:
+    print("[app] AVISO: CARTO_API_KEY não definida. O mapa vai exibir o aviso "
+          "'API key required' da CARTO até a variável ser configurada "
+          "(no Render: Environment; localmente: .env).")
+
 CAPACIDADE_PADRAO_KG = 1200
 JORNADA_MAXIMA_PADRAO_H = 8
 HORIZONTE_RELOGIO_S = (EXPEDIENTE_FIM_H - EXPEDIENTE_INICIO_H) * 3600
@@ -580,6 +591,11 @@ def servir_frontend():
     # nova do HTML/JS no servidor, em vez de reaproveitar uma versão antiga.
     html = Path("frontend/index.html").read_text(encoding="utf-8")
     html = html.replace("{{BUILD}}", FRONTEND_BUILD)
+    # Escapa barra invertida e aspas duplas antes de injetar dentro do
+    # literal JS `const CARTO_API_KEY = "...";` no HTML, pra um valor com
+    # aspas na chave não quebrar a sintaxe do script (nunca logamos o valor).
+    carto_key_js = CARTO_API_KEY.replace("\\", "\\\\").replace('"', '\\"')
+    html = html.replace("{{CARTO_API_KEY}}", carto_key_js)
     resp = app.response_class(html, mimetype="text/html")
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return resp
